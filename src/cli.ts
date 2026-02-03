@@ -36,8 +36,8 @@ identity
   .description('Create a new identity with fresh seed phrase')
   .option('--password <password>', 'Password to encrypt identity')
   .option('--password-file <path>', 'Read password from file (recommended)')
-  .option('--testnet', 'Use testnet addresses (default)', true)
-  .option('--mainnet', 'Use mainnet addresses')
+  .option('--testnet', 'Use testnet addresses (for development)')
+  .option('--mainnet', 'Use mainnet addresses (default, recommended for production)')
   .action(async (options) => {
     if (identityExists()) {
       console.error(JSON.stringify({
@@ -62,7 +62,7 @@ identity
       process.exit(1);
     }
 
-    const id = await createIdentity(!options.mainnet);
+    const id = await createIdentity(options.testnet ?? false);
     saveIdentity(id, password);
 
     console.log(JSON.stringify({
@@ -82,8 +82,8 @@ identity
   .option('--password-file <path>', 'Read password from file (recommended)')
   .option('--mnemonic <phrase>', 'BIP39 seed phrase (24 words)')
   .option('--mnemonic-file <path>', 'Read seed phrase from file (recommended)')
-  .option('--testnet', 'Use testnet addresses (default)', true)
-  .option('--mainnet', 'Use mainnet addresses')
+  .option('--testnet', 'Use testnet addresses (for development)')
+  .option('--mainnet', 'Use mainnet addresses (default, recommended for production)')
   .action(async (options) => {
     if (identityExists()) {
       console.error(JSON.stringify({
@@ -133,7 +133,7 @@ identity
     }
 
     try {
-      const id = await recoverIdentity(mnemonic, !options.mainnet);
+      const id = await recoverIdentity(mnemonic, options.testnet ?? false);
       saveIdentity(id, password);
 
       console.log(JSON.stringify({

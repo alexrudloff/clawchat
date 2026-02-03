@@ -94,7 +94,7 @@ export interface FullIdentity extends Identity {
 /**
  * Create new identity with generated seed phrase
  */
-export async function createIdentity(testnet = true): Promise<FullIdentity> {
+export async function createIdentity(testnet = false): Promise<FullIdentity> {
   const wallet = await generateWallet(testnet);
   const nodeKeys = generateNodeKeyPair();
 
@@ -114,7 +114,7 @@ export async function createIdentity(testnet = true): Promise<FullIdentity> {
  * Recover identity from existing seed phrase
  * Per SPECS - same principal, new node key for this device
  */
-export async function recoverIdentity(mnemonic: string, testnet = true): Promise<FullIdentity> {
+export async function recoverIdentity(mnemonic: string, testnet = false): Promise<FullIdentity> {
   const wallet = await walletFromSeedPhrase(mnemonic, testnet);
   const nodeKeys = generateNodeKeyPair(); // New node key for this device
 
@@ -320,7 +320,7 @@ export async function createAttestation(
  */
 export function verifyAttestation(
   attestation: NodeKeyAttestation,
-  testnet = true
+  testnet = false
 ): boolean {
   const now = Math.floor(Date.now() / 1000);
   const clockSkewTolerance = 5 * 60; // 5 minutes per SPECS 2.6

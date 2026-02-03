@@ -165,7 +165,7 @@ export class Session extends EventEmitter {
 
     // Verify attestation
     const theirAttestation = theirAuth.attestation as NodeKeyAttestation;
-    if (!verifyAttestation(theirAttestation)) {
+    if (!verifyAttestation(theirAttestation, this.identity.testnet)) {
       throw new Error('Invalid attestation');
     }
 

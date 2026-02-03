@@ -77,7 +77,7 @@ export function isValidSeedPhrase(mnemonic: string): boolean {
  */
 export async function walletFromSeedPhrase(
   mnemonic: string,
-  testnet = true
+  testnet = false
 ): Promise<WalletWithPrivateKey> {
   // Validate word count
   const words = mnemonic.trim().split(/\s+/);
@@ -128,7 +128,7 @@ export async function walletFromSeedPhrase(
 /**
  * Generate a new wallet with fresh seed phrase
  */
-export async function generateWallet(testnet = true): Promise<WalletWithPrivateKey> {
+export async function generateWallet(testnet = false): Promise<WalletWithPrivateKey> {
   const mnemonic = generateSeedPhrase();
   return walletFromSeedPhrase(mnemonic, testnet);
 }
@@ -141,7 +141,7 @@ export function verifyWalletSignature(
   message: Uint8Array,
   signature: Uint8Array,
   expectedAddress: string,
-  testnet = true
+  testnet = false
 ): boolean {
   try {
     const messageHash = sha256(message);
@@ -164,7 +164,7 @@ export function verifyWalletSignature(
 /**
  * Get Stacks address from public key
  */
-export function addressFromPublicKey(publicKeyHex: string, testnet = true): string {
+export function addressFromPublicKey(publicKeyHex: string, testnet = false): string {
   const network: StacksNetworkName = testnet ? 'testnet' : 'mainnet';
   return publicKeyToAddress(publicKeyHex, network);
 }

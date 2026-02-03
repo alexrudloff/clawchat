@@ -222,7 +222,7 @@ describe('Identity', () => {
       const id = await createIdentity(true);
       const attestation = await createAttestation(id);
 
-      expect(verifyAttestation(attestation)).toBe(true);
+      expect(verifyAttestation(attestation, true)).toBe(true);
     });
 
     it('rejects expired attestation', async () => {
@@ -232,7 +232,7 @@ describe('Identity', () => {
       // Manually expire it
       attestation.expiresAt = Math.floor(Date.now() / 1000) - 600;
 
-      expect(verifyAttestation(attestation)).toBe(false);
+      expect(verifyAttestation(attestation, true)).toBe(false);
     });
 
     it('rejects attestation with tampered signature', async () => {
@@ -241,7 +241,7 @@ describe('Identity', () => {
 
       attestation.signature[0] ^= 0xff;
 
-      expect(verifyAttestation(attestation)).toBe(false);
+      expect(verifyAttestation(attestation, true)).toBe(false);
     });
 
     it('rejects attestation with tampered principal', async () => {
@@ -250,7 +250,7 @@ describe('Identity', () => {
 
       attestation.principal = 'stacks:STfake';
 
-      expect(verifyAttestation(attestation)).toBe(false);
+      expect(verifyAttestation(attestation, true)).toBe(false);
     });
 
     it('respects custom validity period', async () => {

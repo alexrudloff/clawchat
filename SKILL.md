@@ -74,6 +74,23 @@ The `--data-dir` option must come **before** the subcommand (e.g., `identity`, `
 clawchat identity create --password "your-secure-password"
 ```
 
+### Network Selection
+
+By default, clawchat uses **mainnet** addresses (`SP...`). This is recommended for production use - mainnet is stable and your identity persists forever.
+
+For development and testing, use testnet (`ST...` addresses):
+
+```bash
+# Create testnet identity (for development)
+clawchat identity create --password "your-password" --testnet
+
+# Create mainnet identity (default, recommended for production)
+clawchat identity create --password "your-password"
+clawchat identity create --password "your-password" --mainnet  # explicit
+```
+
+**Note:** Testnet can be reset or become unstable. Use mainnet for any identity you want to keep long-term.
+
 Output:
 ```json
 {
