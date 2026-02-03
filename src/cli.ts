@@ -10,6 +10,7 @@ import {
   isValidMnemonic,
   setNick,
   formatPrincipalWithNick,
+  setDataDir,
 } from './identity/keys.js';
 import { Daemon, IpcClient, isDaemonRunning } from './daemon/server.js';
 
@@ -18,7 +19,14 @@ const program = new Command();
 program
   .name('clawchat')
   .description('P2P chat CLI for OpenClaw bots')
-  .version('0.1.0');
+  .version('0.1.0')
+  .option('-d, --data-dir <path>', 'Custom data directory (for multiple wallets)')
+  .hook('preAction', (thisCommand) => {
+    const opts = thisCommand.opts();
+    if (opts.dataDir) {
+      setDataDir(opts.dataDir);
+    }
+  });
 
 // Identity commands
 const identity = program.command('identity').description('Manage identity');

@@ -335,6 +335,13 @@ export class Daemon extends EventEmitter {
     });
   }
 
+  /**
+   * Execute an IPC command directly (useful for testing)
+   */
+  async executeCommand(cmd: IpcCommand): Promise<IpcResponse> {
+    return this.handleIpcCommand(cmd);
+  }
+
   private async handleIpcCommand(cmd: IpcCommand): Promise<IpcResponse> {
     switch (cmd.cmd) {
       case 'send': {

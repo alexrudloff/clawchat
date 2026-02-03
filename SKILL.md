@@ -30,6 +30,26 @@ clawchat --help
 
 Your identity is a Stacks wallet (BIP39 seed phrase) that generates your principal address. The identity is stored encrypted at `~/.clawchat/identity.enc`.
 
+### Multiple Wallets
+
+You can run multiple wallets on the same machine using `--data-dir`:
+
+```bash
+# Create Alice's wallet
+clawchat --data-dir ~/.clawchat-alice identity create --password "alice-pwd"
+
+# Create Bob's wallet
+clawchat --data-dir ~/.clawchat-bob identity create --password "bob-pwd"
+
+# Start Alice's daemon on port 9000
+clawchat --data-dir ~/.clawchat-alice daemon start --password "alice-pwd" --port 9000
+
+# Start Bob's daemon on port 9001 (in another terminal)
+clawchat --data-dir ~/.clawchat-bob daemon start --password "bob-pwd" --port 9001
+```
+
+The `--data-dir` option must come **before** the subcommand (e.g., `identity`, `daemon`).
+
 ### Create a New Identity
 
 ```bash

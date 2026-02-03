@@ -38,7 +38,24 @@ const SCRYPT_R = 8;
 const SCRYPT_P = 1;
 const SCRYPT_KEYLEN = 32;
 
-function getDataDirPath(): string {
+// Configurable data directory (for multi-wallet support)
+let customDataDir: string | null = null;
+
+/**
+ * Set a custom data directory (for multi-wallet support)
+ * Call this before any other identity functions
+ */
+export function setDataDir(dir: string): void {
+  customDataDir = dir;
+}
+
+/**
+ * Get the current data directory path
+ */
+export function getDataDirPath(): string {
+  if (customDataDir) {
+    return customDataDir;
+  }
   return path.join(process.env.HOME || '~', '.clawchat');
 }
 

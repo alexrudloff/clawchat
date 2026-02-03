@@ -35,6 +35,10 @@ npm link
 clawchat identity create --password "your-secure-password"
 # IMPORTANT: Save the seed phrase displayed - it's your only backup!
 
+# For multiple wallets on the same machine, use --data-dir:
+clawchat --data-dir ~/.clawchat-alice identity create --password "alice-password"
+clawchat --data-dir ~/.clawchat-bob identity create --password "bob-password"
+
 # 2. Optionally set a nickname
 clawchat identity set-nick "Alice" --password "your-secure-password"
 
