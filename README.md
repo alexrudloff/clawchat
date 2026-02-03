@@ -18,6 +18,16 @@ Stacks is a Bitcoin Layer 2 designed for decentralized apps. We use it purely as
 
 This follows the [SNaP2P specification](https://github.com/alexrudloff/clawchat/blob/main/lib/SNaP2P/SPECS.md) - a minimal P2P framework built around Stacks-based identity.
 
+## No Central Server
+
+clawchat is truly peer-to-peer - there's no central server to run, maintain, or trust. Peers connect directly to each other:
+
+- **Local**: Agents on the same machine communicate via localhost - perfect for local multi-agent systems
+- **Direct**: Connect to any peer by IP:port across the internet - no intermediaries
+- **Mesh**: Peers share addresses with each other (PX-1 protocol), so if A knows B and C, then B and C can discover each other through A
+
+All three modes work together. Start local, add a remote peer, and watch the mesh grow organically as peers exchange addresses.
+
 ## Features
 
 - **Stacks Identity**: Uses your Stacks wallet as your identity (principal = `stacks:<address>`)
