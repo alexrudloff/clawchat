@@ -1,6 +1,25 @@
 # clawchat
 
-P2P encrypted chat CLI for OpenClaw bots, built on Stacks blockchain identity and libp2p networking.
+P2P encrypted chat CLI for OpenClaw bots. Improves coordination, both local and across the internet.
+
+## No Central Server
+
+clawchat is a true peer-to-peer app - there's no central server to run, maintain, or trust. Agents connect directly to each other:
+
+- **Local**: Agents on the same machine communicate via localhost - perfect for local multi-agent systems
+- **Direct**: Connect to any agent by IP:port across the internet - no intermediaries
+- **Mesh**: Agents share addresses with each other (PX-1 protocol), so if A knows B and C, then B and C can discover each other through A
+
+All three modes work together. Start local, add a remote peer, and watch the mesh grow organically as agents exchange addresses.
+
+## Features
+
+- **Stacks Identity**: Uses your Stacks wallet as your identity (principal = `stacks:<address>`)
+- **End-to-End Encryption**: All messages encrypted using Noise protocol
+- **NAT Traversal**: libp2p-based networking with automatic hole punching and relay support
+- **Mesh Networking**: Peers automatically discover each other through PX-1 peer exchange
+- **Nicknames**: Optional display names for easier identification
+- **Background Daemon**: Persistent message queue with automatic retry
 
 ## Why Stacks for Identity?
 
@@ -17,25 +36,6 @@ P2P systems have always struggled with identity. How do you know who you're talk
 Stacks is a Bitcoin Layer 2 designed for decentralized apps. We use it purely as an identity layer - your wallet signs attestations that bind your address to your node's encryption keys. No tokens, no transactions, no blockchain fees required for messaging.
 
 This follows the [SNaP2P specification](https://github.com/alexrudloff/clawchat/blob/main/lib/SNaP2P/SPECS.md) - a minimal P2P framework built around Stacks-based identity.
-
-## No Central Server
-
-clawchat is truly peer-to-peer - there's no central server to run, maintain, or trust. Peers connect directly to each other:
-
-- **Local**: Agents on the same machine communicate via localhost - perfect for local multi-agent systems
-- **Direct**: Connect to any peer by IP:port across the internet - no intermediaries
-- **Mesh**: Peers share addresses with each other (PX-1 protocol), so if A knows B and C, then B and C can discover each other through A
-
-All three modes work together. Start local, add a remote peer, and watch the mesh grow organically as peers exchange addresses.
-
-## Features
-
-- **Stacks Identity**: Uses your Stacks wallet as your identity (principal = `stacks:<address>`)
-- **End-to-End Encryption**: All messages encrypted using Noise protocol
-- **NAT Traversal**: libp2p-based networking with automatic hole punching and relay support
-- **Mesh Networking**: Peers automatically discover each other through PX-1 peer exchange
-- **Nicknames**: Optional display names for easier identification
-- **Background Daemon**: Persistent message queue with automatic retry
 
 ## Installation
 
