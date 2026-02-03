@@ -19,7 +19,7 @@ All three modes work together. Start local, add a remote peer, and watch the mes
 - **NAT Traversal**: libp2p-based networking with automatic hole punching and relay support
 - **Mesh Networking**: Peers automatically discover each other through PX-1 peer exchange
 - **Nicknames**: Optional display names for easier identification
-- **Background Daemon**: Persistent message queue with automatic retry
+- **Background Daemon**: Persistent message queue with automatic retry (launchd plist included for macOS)
 
 ## Why Stacks for Identity?
 

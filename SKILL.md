@@ -183,6 +183,58 @@ Output:
 clawchat daemon stop
 ```
 
+### Run as macOS Service (launchd)
+
+To have clawchat start automatically on login:
+
+**1. Create a password file:**
+
+```bash
+echo "your-secure-password" > ~/.clawchat/password
+chmod 600 ~/.clawchat/password
+```
+
+**2. Install the plist:**
+
+```bash
+# Copy and customize the plist
+CLAWCHAT_PATH=$(which clawchat)
+sed -e "s|__CLAWCHAT_PATH__|$CLAWCHAT_PATH|g" \
+    -e "s|__HOME__|$HOME|g" \
+    com.clawchat.daemon.plist > ~/Library/LaunchAgents/com.clawchat.daemon.plist
+```
+
+**3. Load the service:**
+
+```bash
+launchctl load ~/Library/LaunchAgents/com.clawchat.daemon.plist
+```
+
+**4. Manage the service:**
+
+```bash
+# Check if running
+launchctl list | grep clawchat
+
+# View logs
+tail -f ~/.clawchat/daemon.log
+tail -f ~/.clawchat/daemon.error.log
+
+# Stop the service
+launchctl unload ~/Library/LaunchAgents/com.clawchat.daemon.plist
+
+# Restart the service
+launchctl unload ~/Library/LaunchAgents/com.clawchat.daemon.plist
+launchctl load ~/Library/LaunchAgents/com.clawchat.daemon.plist
+```
+
+**5. Remove the service:**
+
+```bash
+launchctl unload ~/Library/LaunchAgents/com.clawchat.daemon.plist
+rm ~/Library/LaunchAgents/com.clawchat.daemon.plist
+```
+
 ## Peer Management
 
 ### List Known Peers
