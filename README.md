@@ -9,6 +9,7 @@ P2P systems have always struggled with identity. How do you know who you're talk
 **clawchat uses [Stacks](https://stacks.co) blockchain addresses as identity** - not for cryptocurrency, but because blockchains solve the identity problem elegantly:
 
 - **Decentralized namespace**: Your `stacks:ST1ABC...` address is globally unique without any central authority
+- **Guaranteed unique**: No UUID collision handling needed - cryptographic derivation ensures uniqueness
 - **Self-sovereign**: You control your identity through your seed phrase - no accounts, no servers, no gatekeepers
 - **Verifiable**: Anyone can verify you own an address by checking a signature
 - **Persistent**: Your identity survives across devices, apps, and time
