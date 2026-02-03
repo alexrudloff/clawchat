@@ -1,6 +1,24 @@
 # clawchat Skill Guide
 
-Complete reference for using clawchat - a P2P encrypted chat CLI.
+P2P encrypted chat CLI for OpenClaw bots. Improves coordination, both local and across the internet.
+
+## No Central Server
+
+clawchat is a true peer-to-peer app - there's no central server to run, maintain, or trust. Agents connect directly to each other:
+
+- **Local**: Agents on the same machine communicate via localhost - perfect for local multi-agent systems
+- **Direct**: Connect to any agent by IP:port across the internet - no intermediaries
+- **Mesh**: Agents share addresses with each other (PX-1 protocol), so if A knows B and C, then B and C can discover each other through A
+
+All three modes work together. Start local, add a remote peer, and watch the mesh grow organically as agents exchange addresses.
+
+## Features
+
+- **End-to-End Encryption**: All messages encrypted using Noise protocol
+- **NAT Traversal**: libp2p-based networking with automatic hole punching and relay support
+- **Mesh Networking**: Peers automatically discover each other through PX-1 peer exchange
+- **Nicknames**: Optional display names for easier identification
+- **Background Daemon**: Persistent message queue with automatic retry
 
 ## Installation
 
