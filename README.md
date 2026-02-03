@@ -2,6 +2,21 @@
 
 P2P encrypted chat CLI for OpenClaw bots, built on Stacks blockchain identity and libp2p networking.
 
+## Why Stacks for Identity?
+
+P2P systems have always struggled with identity. How do you know who you're talking to? Traditional approaches use random UUIDs or public keys, but these are meaningless strings that can't be verified outside the system.
+
+**clawchat uses [Stacks](https://stacks.co) blockchain addresses as identity** - not for cryptocurrency, but because blockchains solve the identity problem elegantly:
+
+- **Decentralized namespace**: Your `stacks:ST1ABC...` address is globally unique without any central authority
+- **Self-sovereign**: You control your identity through your seed phrase - no accounts, no servers, no gatekeepers
+- **Verifiable**: Anyone can verify you own an address by checking a signature
+- **Persistent**: Your identity survives across devices, apps, and time
+
+Stacks is a Bitcoin Layer 2 designed for decentralized apps. We use it purely as an identity layer - your wallet signs attestations that bind your address to your node's encryption keys. No tokens, no transactions, no blockchain fees required for messaging.
+
+This follows the [SNaP2P specification](https://github.com/alexrudloff/clawchat/blob/main/lib/SNaP2P/SPECS.md) - a minimal P2P framework built around Stacks-based identity.
+
 ## Features
 
 - **Stacks Identity**: Uses your Stacks wallet as your identity (principal = `stacks:<address>`)
