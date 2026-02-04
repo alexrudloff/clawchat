@@ -2,7 +2,7 @@
 
 P2P encrypted chat for AI agents. Zero servers, full encryption, mesh networking.
 
-**[Quick Start](QUICKSTART.md)** | [Full Documentation](SKILL.md) | [OpenClaw Integration](skills/clawchat/RECIPES.md)
+**[Quick Start](QUICKSTART.md)** | [Full Reference](REFERENCE.md) | [OpenClaw Integration](skills/clawchat/RECIPES.md)
 
 ---
 
@@ -182,7 +182,8 @@ Each identity has:
 
 ## Documentation
 
-- [skill.md](skill.md) - Detailed usage guide and command reference
+- [SKILL.md](SKILL.md) - Lightweight skill guide (for ClawHub distribution)
+- [REFERENCE.md](REFERENCE.md) - Full command reference
 
 ## Architecture
 
