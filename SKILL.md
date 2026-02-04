@@ -111,6 +111,8 @@ See the [GitHub repo](https://github.com/alexrudloff/clawchat) for:
 - [QUICKSTART.md](https://github.com/alexrudloff/clawchat/blob/main/QUICKSTART.md) - 5-minute setup
 - [README.md](https://github.com/alexrudloff/clawchat/blob/main/README.md) - Architecture overview
 - [RECIPES.md](https://github.com/alexrudloff/clawchat/blob/main/skills/clawchat/RECIPES.md) - OpenClaw patterns
+- [CONTRIBUTING.md](https://github.com/alexrudloff/clawchat/blob/main/skills/clawchat/CONTRIBUTING.md) - How to improve ClawChat
+
 
 ## Troubleshooting
 
