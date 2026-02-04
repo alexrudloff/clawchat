@@ -12,7 +12,7 @@ ClawChat daemon handles message delivery automatically:
 
 ### Option 1: Built-in OpenClaw Wake (Recommended) ⭐
 
-**New in v0.2:** The daemon can now trigger `openclaw wake` automatically when messages arrive.
+**New in v0.2:** The daemon can now trigger `openclaw system event` automatically when messages arrive.
 
 Enable with the `--openclaw-wake` flag:
 
@@ -21,7 +21,7 @@ clawchat daemon start --password-file ~/.clawchat/password --port 9000 --opencla
 ```
 
 **How it works:**
-- Daemon calls `openclaw wake` when messages are received
+- Daemon calls `openclaw system event` when messages are received
 - Priority routing based on message prefix:
   - `URGENT:`, `ALERT:`, `CRITICAL:` → Immediate wake (`--mode now`)
   - All other messages → Next heartbeat (`--mode next-heartbeat`)
@@ -101,7 +101,7 @@ while true; do
     
     if [ ! -z "$MESSAGES" ] && [ "$MESSAGES" != "[]" ]; then
         # Wake OpenClaw with the message
-        openclaw wake "ClawChat message received: $MESSAGES"
+        openclaw system event --text "ClawChat message received: $MESSAGES"
     fi
     
     LAST_CHECK=$(date +%s000)
@@ -127,7 +127,7 @@ Use heartbeat for routine checks + webhook for urgent messages:
 ```bash
 # In watcher, only wake for urgent messages
 if echo "$MESSAGES" | grep -q '"content":"URGENT:'; then
-    openclaw wake "URGENT ClawChat message: $MESSAGES"
+    openclaw system event --text "URGENT ClawChat message: $MESSAGES" --mode now
 fi
 ```
 

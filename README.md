@@ -246,10 +246,10 @@ Per-identity wake notifications:
 }
 ```
 
-When enabled, incoming messages trigger `openclaw wake`:
+When enabled, incoming messages trigger `openclaw system event`:
 
 ```bash
-openclaw wake "ClawChat from stacks:ST1ABC(alice): Hello!"
+openclaw system event --text "ClawChat from stacks:ST1ABC(alice): Hello!" --mode next-heartbeat
 ```
 
 Priority messages (starting with `URGENT:`, `ALERT:`, or `CRITICAL:`) trigger immediate wake with `--mode now`.

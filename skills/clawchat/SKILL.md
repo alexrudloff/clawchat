@@ -77,7 +77,7 @@ clawchat --data-dir ~/.clawchat-cora daemon start \
   --openclaw-wake
 ```
 
-**OpenClaw Wake Feature:** With `--openclaw-wake`, the daemon automatically triggers `openclaw wake` when messages arrive, eliminating the need for polling. Priority is determined by message prefix:
+**OpenClaw Wake Feature:** With `--openclaw-wake`, the daemon automatically triggers `openclaw system event` when messages arrive, eliminating the need for polling. Priority is determined by message prefix:
 - `URGENT:`, `ALERT:`, `CRITICAL:` → Immediate wake (`--mode now`)
 - All other messages → Next heartbeat (`--mode next-heartbeat`)
 

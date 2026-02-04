@@ -282,7 +282,7 @@ export class Daemon extends EventEmitter {
 
     this.emit('message', message);
 
-    // Trigger openclaw wake if enabled for this identity
+    // Trigger openclaw system event if enabled for this identity
     if (result.identity!.config.openclawWake) {
       this.triggerOpenclawWake(message);
     }
@@ -306,20 +306,20 @@ export class Daemon extends EventEmitter {
 
       const wakeMessage = `ClawChat from ${fromDisplay}: ${message.content}`;
 
-      // Spawn openclaw wake command
+      // Spawn openclaw system event command
       // Use spawnSync with timeout to avoid blocking
-      const result = spawnSync('openclaw', ['wake', wakeMessage, '--mode', mode], {
+      const result = spawnSync('openclaw', ['system', 'event', '--text', wakeMessage, '--mode', mode], {
         timeout: 5000,  // 5 second timeout
         stdio: 'ignore'  // Don't capture output
       });
 
       // Log error if command failed (but don't crash daemon)
       if (result.error) {
-        console.error('[openclaw-wake] Failed to trigger wake:', result.error.message);
+        console.error('[openclaw-event] Failed to trigger system event:', result.error.message);
       }
     } catch (error) {
       // Silent fail - openclaw might not be installed or available
-      console.error('[openclaw-wake] Error triggering wake:', error);
+      console.error('[openclaw-event] Error triggering system event:', error);
     }
   }
 
@@ -694,7 +694,7 @@ export class Daemon extends EventEmitter {
       // Emit message event for local delivery
       this.emit('message', { ...message, status: 'delivered' });
 
-      // Trigger openclaw wake if enabled for recipient
+      // Trigger openclaw system event if enabled for recipient
       if (recipientIdentity.config.openclawWake) {
         this.triggerOpenclawWake(message);
       }

@@ -28,17 +28,17 @@ clawchat daemon start \
   --openclaw-wake
 ```
 
-That's it! The daemon will automatically call `openclaw wake` when messages arrive.
+That's it! The daemon will automatically call `openclaw system event` when messages arrive.
 
 2. **Priority-based routing:**
 ```bash
 # Urgent messages trigger immediate wake
 clawchat send stacks:TARGET "URGENT:Server down!"
-# → openclaw wake "ClawChat from sender: URGENT:Server down!" --mode now
+# → openclaw system event --text "ClawChat from sender: URGENT:Server down!" --mode now
 
 # Regular messages queue for next heartbeat
 clawchat send stacks:TARGET "STATUS:All systems operational"
-# → openclaw wake "ClawChat from sender: STATUS:..." --mode next-heartbeat
+# → openclaw system event --text "ClawChat from sender: STATUS:..." --mode next-heartbeat
 ```
 
 **Pros:**
@@ -225,10 +225,10 @@ while true; do
                 # Check urgency
                 if [[ "$CONTENT" == URGENT:* ]] || [[ "$CONTENT" == ALERT:* ]]; then
                     # Immediate wake
-                    openclaw wake "ClawChat urgent: $CONTENT" --mode now
+                    openclaw system event --text "ClawChat urgent: $CONTENT" --mode now
                 elif [[ "$CONTENT" == TASK:* ]]; then
                     # Queue for next heartbeat
-                    openclaw wake "ClawChat task: $CONTENT"
+                    openclaw system event --text "ClawChat task: $CONTENT"
                 fi
             fi
         done
@@ -281,7 +281,7 @@ Combine all three approaches:
 ```bash
 # Watcher only triggers on urgent
 if [[ "$CONTENT" =~ ^(URGENT|ALERT|CRITICAL): ]]; then
-    openclaw wake "Critical ClawChat: $CONTENT" --mode now
+    openclaw system event --text "Critical ClawChat: $CONTENT" --mode now
 fi
 ```
 
@@ -389,7 +389,7 @@ fi
 
 # 3. Watcher: Urgent dietary restrictions
 if [[ "$CONTENT" == "URGENT:ALLERGY:"* ]]; then
-    openclaw wake "Food allergy alert: $CONTENT"
+    openclaw system event --text "Food allergy alert: $CONTENT"
 fi
 
 # 4. Regular cron: Collect votes

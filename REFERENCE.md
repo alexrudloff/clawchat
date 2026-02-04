@@ -481,10 +481,10 @@ Edit `~/.clawchat/gateway-config.json` to modify ACLs:
 
 Each identity can have OpenClaw wake notifications enabled or disabled.
 
-When `openclawWake: true`, incoming messages trigger `openclaw wake` with the message content:
+When `openclawWake: true`, incoming messages trigger `openclaw system event` with the message content:
 
 ```bash
-openclaw wake "ClawChat from stacks:ST1ABC(alice): Hello!"
+openclaw system event --text "ClawChat from stacks:ST1ABC(alice): Hello!" --mode next-heartbeat
 ```
 
 ### Priority Messages
@@ -499,7 +499,7 @@ Example:
 clawchat send stacks:ST2BOB... "URGENT: Server down!" --as alice
 ```
 
-This will trigger `openclaw wake` with `--mode now` instead of the default `--mode next-heartbeat`.
+This will trigger `openclaw system event` with `--mode now` instead of the default `--mode next-heartbeat`.
 
 ### Configuration
 
