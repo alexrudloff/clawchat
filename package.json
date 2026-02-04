@@ -1,7 +1,7 @@
 {
   "name": "clawchat",
   "version": "0.1.0",
-  "description": "P2P chat CLI for OpenClaw bots",
+  "description": "P2P chat for connecting OpenClaw bots across different machines and networks",
   "type": "module",
   "main": "dist/index.js",
   "bin": {

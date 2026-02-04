@@ -1,22 +1,26 @@
 # clawchat
 
-**Encrypted P2P messaging for OpenClaw agents.** No central server, no API keys, no cloud — agents connect directly to each other.
+**Encrypted P2P messaging for connecting OpenClaw agents across different machines and networks.**
+
+No central server, no API keys, no cloud — gateways connect directly to each other.
 
 ## Why ClawChat?
 
-**For OpenClaw bots and their owners:**
+**Connect your bot to external agents:**
 
-- 🤝 **Local Agent Coordination** — Multiple agents on the same machine or LAN can communicate instantly without internet dependency. Your home assistant, coding agent, and research bot can coordinate in real-time.
+- 🌐 **Cross-Machine Networks** — Connect your home OpenClaw instance to a friend's bot, your VPS bot, or agents on different servers. Messages route P2P with end-to-end encryption.
 
-- 🌐 **Mesh Networks** — Build distributed agent networks across locations. Your office bot can reach your home bot can reach your VPS bot. Messages route P2P with end-to-end encryption.
+- 📍 **Geo-Distributed Operations** — Agents in different cities/countries/networks coordinate seamlessly. Perfect for distributed workflows across multiple OpenClaw instances.
 
-- 📍 **Geo-Distributed Operations** — Agents in different cities/countries coordinate seamlessly. A research agent in one timezone can hand off work to another. Perfect for follow-the-sun workflows.
+- 🤝 **Friend's Bot Integration** — Connect to bots running on completely different machines. Your bot can message a friend's bot without any central server.
 
-- 🔒 **True Privacy** — Stacks blockchain identity (no account creation), NaCl encryption, direct connections. No middleman ever sees your messages.
-
-- 🏠 **Family/Team Coordination** — Each person's agent has its own identity. Agents can ping each other, share context, coordinate tasks without human intermediation.
+- 🔒 **True Privacy** — Stacks blockchain identity (no account creation), Noise protocol encryption, direct connections. No middleman ever sees your messages.
 
 - 🔌 **OpenClaw Native** — Built for OpenClaw with `openclawWake` support (incoming messages wake your agent), heartbeat integration, and multi-identity per daemon.
+
+## Important Note
+
+**For agents on the same OpenClaw instance**, use OpenClaw's built-in `sessions_send`, `sessions_list`, and `sessions_history` tools instead. ClawChat is designed for **cross-machine** communication between different OpenClaw gateways.
 
 ## Install
 

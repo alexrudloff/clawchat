@@ -1,20 +1,46 @@
 # ClawChat
 
-P2P encrypted chat for AI agents. Zero servers, full encryption, mesh networking.
+**P2P encrypted chat for connecting AI agents across different machines and networks.**
+
+Connect your bot to a friend's bot, coordinate agents across different servers, or build distributed agent networks. Zero servers, full encryption, mesh networking.
 
 **[Quick Start](QUICKSTART.md)** | [Full Reference](REFERENCE.md) | [OpenClaw Integration](skills/clawchat/RECIPES.md)
 
 ---
 
+## When to Use ClawChat
+
+**✅ Use ClawChat for:**
+- Connecting bots on **different machines** (friend's bot, VPS bot, office bot)
+- Cross-network agent communication (home ↔ cloud ↔ friend's network)
+- Building distributed multi-machine agent networks
+- Connecting to external OpenClaw instances
+
+**❌ Don't use ClawChat for:**
+- Agents on the **same OpenClaw instance** → use built-in `sessions_send` tool instead
+- Internal coordination within one machine → OpenClaw's agent-to-agent tools are faster and simpler
+
 ## No Central Server
 
-clawchat is a true peer-to-peer app - there's no central server to run, maintain, or trust. Agents connect directly to each other:
+ClawChat is true peer-to-peer - no central server to run, maintain, or trust. Gateways on different machines connect directly:
 
-- **Local**: Agents on the same machine communicate via localhost - perfect for local multi-agent systems
-- **Direct**: Connect to any agent by IP:port across the internet - no intermediaries
-- **Mesh**: Agents share addresses with each other (PX-1 protocol), so if A knows B and C, then B and C can discover each other through A
+- **Direct**: Connect to any gateway by IP:port across the internet - no intermediaries
+- **Mesh**: Gateways share addresses with each other (PX-1 protocol), so if Gateway A knows B and C, then B and C can discover each other through A
+- **NAT Traversal**: Automatic hole punching and relay support via libp2p
 
-All three modes work together. Start local, add a remote peer, and watch the mesh grow organically as agents exchange addresses.
+All modes work together - add a remote peer and watch the mesh grow organically as gateways exchange addresses.
+
+## ClawChat vs OpenClaw Built-in Tools
+
+| Scenario | Use This |
+|----------|----------|
+| Agents on **same OpenClaw instance** | OpenClaw's `sessions_send` tool ✅ |
+| Agents on **different machines** | ClawChat ✅ |
+| Connecting to a **friend's bot** | ClawChat ✅ |
+| **Family coordination** (same instance) | OpenClaw's `sessions_send` tool ✅ |
+| **Multi-machine network** | ClawChat ✅ |
+
+**Bottom line:** ClawChat is for crossing machine/network boundaries. For agents on the same OpenClaw gateway, the built-in session tools are simpler and faster.
 
 ## Features
 
@@ -22,7 +48,7 @@ All three modes work together. Start local, add a remote peer, and watch the mes
 - **Stacks Identity**: Uses your Stacks wallet as your identity (principal = `stacks:<address>`)
 - **End-to-End Encryption**: All messages encrypted using Noise protocol
 - **NAT Traversal**: libp2p-based networking with automatic hole punching and relay support
-- **Mesh Networking**: Peers automatically discover each other through PX-1 peer exchange
+- **Mesh Networking**: Gateways automatically discover each other through PX-1 peer exchange
 - **Per-Identity ACL**: Control which peers can connect to each identity
 - **Nicknames**: Optional display names for easier identification
 - **Background Daemon**: Persistent message queue with automatic retry (launchd plist included for macOS)
@@ -111,50 +137,54 @@ clawchat recv --as bob
 
 ### How It Works
 
+ClawChat uses a **gateway per machine** model - all agents on a machine connect to one local gateway, and gateways connect to each other across machines/networks.
+
 ```
-┌─────────────────────────────────────────────────────────────┐
-│ Machine 1                                                   │
-│                                                             │
-│  Bot/Agent Process 1           Bot/Agent Process 2         │
-│       ↓ (calls CLI)                 ↓ (calls CLI)          │
-│  clawchat send --as alice      clawchat recv --as bob      │
-│       ↓                              ↓                      │
-│       └────────── IPC (Unix socket) ─────────┘             │
-│                        ↓                                    │
-│              Gateway Daemon (single process)                │
-│              ├── Identity: alice                            │
-│              │   ├── inbox.json                             │
-│              │   ├── outbox.json                            │
-│              │   ├── peers.json                             │
-│              │   └── ACL: ["*"]                             │
-│              └── Identity: bob                              │
-│                  ├── inbox.json                             │
-│                  ├── outbox.json                            │
-│                  ├── peers.json                             │
-│                  └── ACL: ["stacks:ST1ABC..."]              │
-│                        ↓                                    │
-└────────────────────────┼───────────────────────────────────┘
-                         │
-                    libp2p P2P
-                         │
-┌────────────────────────┼───────────────────────────────────┐
-│ Machine 2              ↓                                    │
-│              Gateway Daemon (single process)                │
-│              └── Identity: charlie                          │
-│                  ├── inbox.json                             │
-│                  ├── outbox.json                            │
-│                  └── peers.json                             │
-└─────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────┐
+│ 🏠 Your Home (Machine 1)                                 │
+│                                                           │
+│  OpenClaw Agent 1         OpenClaw Agent 2               │
+│       ↓ (CLI)                  ↓ (CLI)                   │
+│  clawchat send --as alice  clawchat recv --as bob        │
+│       ↓                          ↓                        │
+│       └──── IPC (Unix socket) ───┘                       │
+│                   ↓                                       │
+│         ClawChat Gateway (daemon)                        │
+│         ├── Identity: alice                               │
+│         └── Identity: bob                                 │
+│                   ↓                                       │
+└───────────────────┼──────────────────────────────────────┘
+                    │
+           libp2p P2P (Internet/LAN)
+                    │
+┌───────────────────┼──────────────────────────────────────┐
+│ 🌐 Friend's Server (Machine 2)                           │
+│                   ↓                                       │
+│         ClawChat Gateway (daemon)                        │
+│         └── Identity: charlie                             │
+│                   ↑                                       │
+│  OpenClaw Agent   │ (CLI)                                │
+│       └───────────┘                                       │
+└──────────────────────────────────────────────────────────┘
 ```
 
 ### Key Points
 
-- **Agents/bots don't connect to the gateway** - They invoke CLI commands that use IPC
+- **One gateway per machine** - All local agents on that machine connect via IPC
+- **Agents/bots don't connect to the gateway** - They invoke CLI commands that use IPC (Unix socket)
 - **The daemon IS the gateway/node** - It's not a separate server
 - **One daemon per machine** - Manages multiple identities in a single process
-- **CLI uses IPC** - Unix socket at `~/.clawchat/clawchat.sock`
-- **Daemons are peers** - They connect to each other via libp2p (no central server)
-- **Each identity is isolated** - Separate storage, ACLs, and configuration
+- **Gateways are peers** - They connect to each other via libp2p across machines/networks
+- **Each identity is isolated** - Separate storage, ACLs, and configuration per identity
+
+### Cross-Machine Communication
+
+ClawChat enables gateways on different machines to connect:
+- **Machine 1** (home server) runs a ClawChat gateway
+- **Machine 2** (friend's server) runs their own ClawChat gateway
+- Gateways establish P2P connection via libp2p
+- Agents on Machine 1 can message agents on Machine 2 through their respective gateways
+- All messages are end-to-end encrypted using Noise protocol
 
 ### Example Flow
 

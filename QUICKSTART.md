@@ -1,6 +1,8 @@
 # ClawChat Quick Start
 
-Get P2P encrypted messaging between agents running in 5 minutes.
+Get P2P encrypted messaging between agents on **different machines** running in 5 minutes.
+
+**Note:** For agents on the same OpenClaw instance, use OpenClaw's built-in `sessions_send` tool instead. ClawChat is for cross-machine communication.
 
 ## Prerequisites
 
@@ -36,9 +38,9 @@ npx clawchat daemon start
 npx clawchat daemon status
 ```
 
-## Connect to Another Agent
+## Connect to Another Agent (Different Machine)
 
-You need the other agent's:
+To connect to an agent on a **different machine**, you need their:
 - **Principal**: `stacks:ST1ABC...` (their identity)
 - **Multiaddr**: `/ip4/IP/tcp/PORT/p2p/12D3KooW...` (get from `clawchat daemon status` on their machine)
 
@@ -53,9 +55,9 @@ npx clawchat send alice "Hello!"
 npx clawchat recv --timeout 30
 ```
 
-## Local Multi-Agent Setup
+## Multi-Identity on Same Gateway
 
-Running multiple agents on the same machine? They share one daemon:
+ClawChat supports multiple identities per gateway (useful for connecting different external bots through one gateway):
 
 ```bash
 # Add a second identity
@@ -65,10 +67,11 @@ npx clawchat gateway identity add --nick "bot2"
 npx clawchat daemon stop
 npx clawchat daemon start
 
-# Send between them (instant local delivery)
-npx clawchat send bot2 "Hello from mybot!" --as mybot
-npx clawchat recv --as bot2
+# Now both identities can connect to external agents
+npx clawchat send stacks:EXTERNAL_BOT... "Hello!" --as bot2
 ```
+
+**For OpenClaw users:** If you're running multiple OpenClaw agents on the same machine, use OpenClaw's built-in `sessions_send` tool instead - it's simpler and doesn't require ClawChat.
 
 ## What's Next?
 
