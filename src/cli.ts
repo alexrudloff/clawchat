@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+import path from 'path';
 import { Command } from 'commander';
 import {
   createIdentity,
@@ -11,8 +12,10 @@ import {
   setNick,
   formatPrincipalWithNick,
   setDataDir,
+  getDataDir,
 } from './identity/keys.js';
 import { Daemon, IpcClient, isDaemonRunning } from './daemon/server.js';
+import { registerGatewayCommands } from './cli/gateway.js';
 
 const program = new Command();
 
@@ -264,16 +267,26 @@ const daemon = program.command('daemon').description('Background daemon');
 daemon
   .command('start')
   .description('Start the daemon')
-  .option('--password <password>', 'Password to decrypt identity (insecure, visible in ps)')
+  .option('--password <password>', 'Password to decrypt identities (insecure, visible in ps)')
   .option('--password-file <path>', 'Read password from file (recommended)')
-  .option('-p, --port <port>', 'P2P listen port', '9000')
-  .option('--openclaw-wake', 'Trigger openclaw wake on message receipt (for OpenClaw agents)')
-  .option('--foreground', 'Run in foreground (default)', true)
   .action(async (options) => {
     if (isDaemonRunning()) {
       console.error(JSON.stringify({ error: 'Daemon already running' }));
       process.exit(1);
     }
+
+    // Check for gateway mode
+    const { isGatewayMode, loadGatewayConfig } = await import('./daemon/gateway-config.js');
+    const { IdentityManager } = await import('./daemon/identity-manager.js');
+
+    if (!isGatewayMode()) {
+      console.error(JSON.stringify({
+        error: 'Gateway mode not initialized. Run: clawchat gateway init'
+      }));
+      process.exit(1);
+    }
+
+    const config = loadGatewayConfig();
 
     // Get password from file or argument
     let password: string;
@@ -288,28 +301,68 @@ daemon
     } else if (options.password) {
       password = options.password;
     } else {
-      console.error(JSON.stringify({ error: 'Password required. Use --password-file or --password' }));
+      console.error(JSON.stringify({
+        error: 'Password required. Use --password-file or --password'
+      }));
       process.exit(1);
     }
 
-    let id;
-    try {
-      id = loadIdentity(password);
-    } catch (err) {
-      console.error(JSON.stringify({ error: String(err) }));
-      process.exit(1);
-    }
-
-    if (!id) {
-      console.error(JSON.stringify({ error: 'No identity found. Run: clawchat identity create' }));
-      process.exit(1);
-    }
-
+    // Create daemon
     const d = new Daemon({
-      identity: id,
-      p2pPort: parseInt(options.port, 10),
-      openclawWake: options.openclawWake ?? false,
+      p2pPort: config.p2pPort,
+      gatewayConfig: config,
     });
+
+    // Load autoload identities before starting
+    const identityManager = (d as any).identityManager as InstanceType<typeof IdentityManager>;
+    const autoloadIdentities = config.identities.filter(id => id.autoload);
+
+    if (autoloadIdentities.length === 0) {
+      console.error(JSON.stringify({
+        error: 'No autoload identities configured. Add identities with: clawchat gateway identity add'
+      }));
+      process.exit(1);
+    }
+
+    console.log(JSON.stringify({
+      event: 'loading_identities',
+      count: autoloadIdentities.length
+    }));
+
+    for (const identityConfig of autoloadIdentities) {
+      try {
+        // Try to get per-identity password from its directory first
+        let identityPassword = password;
+        const identityDir = path.join(getDataDir(), 'identities', identityConfig.principal);
+        const identityPwFile = path.join(identityDir, 'password');
+        const fs = await import('fs');
+        if (fs.existsSync(identityPwFile)) {
+          try {
+            identityPassword = fs.readFileSync(identityPwFile, 'utf-8').trim();
+          } catch {
+            // Fall back to CLI password
+          }
+        }
+        
+        await identityManager.loadIdentity(
+          identityConfig.principal,
+          identityPassword,
+          identityConfig
+        );
+        console.log(JSON.stringify({
+          event: 'identity_loaded',
+          principal: identityConfig.principal,
+          nick: identityConfig.nick
+        }));
+      } catch (err) {
+        console.error(JSON.stringify({
+          event: 'identity_load_failed',
+          principal: identityConfig.principal,
+          error: String(err)
+        }));
+        process.exit(1);
+      }
+    }
 
     d.on('started', (info) => {
       console.log(JSON.stringify({ event: 'started', ...info }));
@@ -380,7 +433,8 @@ program
   .description('Send a message to a peer')
   .argument('<to>', 'Recipient principal or alias')
   .argument('<message>', 'Message content')
-  .action(async (to, message) => {
+  .option('--as <identity>', 'Send as specific identity (principal or nickname)')
+  .action(async (to, message, options) => {
     if (!isDaemonRunning()) {
       console.error(JSON.stringify({ error: 'Daemon not running. Start with: clawchat daemon start' }));
       process.exit(1);
@@ -388,7 +442,7 @@ program
 
     try {
       const client = new IpcClient();
-      const response = await client.send({ cmd: 'send', to, content: message });
+      const response = await client.send({ cmd: 'send', to, content: message, as: options.as });
 
       if (response.ok) {
         console.log(JSON.stringify({ status: 'queued', ...(response.data as object) }));
@@ -407,6 +461,7 @@ program
   .description('Receive messages')
   .option('--since <timestamp>', 'Only messages after this timestamp')
   .option('--timeout <seconds>', 'Wait up to N seconds for messages (useful for ACKs)')
+  .option('--as <identity>', 'Receive for specific identity (principal or nickname)')
   .action(async (options) => {
     if (!isDaemonRunning()) {
       console.error(JSON.stringify({ error: 'Daemon not running' }));
@@ -421,6 +476,7 @@ program
         cmd: 'recv',
         since: options.since ? parseInt(options.since, 10) : undefined,
         timeout: timeoutMs,
+        as: options.as,
       });
 
       if (response.ok) {
@@ -438,7 +494,8 @@ program
 program
   .command('inbox')
   .description('Show all received messages')
-  .action(async () => {
+  .option('--as <identity>', 'Show inbox for specific identity (principal or nickname)')
+  .action(async (options) => {
     if (!isDaemonRunning()) {
       console.error(JSON.stringify({ error: 'Daemon not running' }));
       process.exit(1);
@@ -446,7 +503,7 @@ program
 
     try {
       const client = new IpcClient();
-      const response = await client.send({ cmd: 'inbox' });
+      const response = await client.send({ cmd: 'inbox', as: options.as });
       console.log(JSON.stringify(response.data));
     } catch (err) {
       console.error(JSON.stringify({ error: String(err) }));
@@ -457,7 +514,8 @@ program
 program
   .command('outbox')
   .description('Show queued outgoing messages')
-  .action(async () => {
+  .option('--as <identity>', 'Show outbox for specific identity (principal or nickname)')
+  .action(async (options) => {
     if (!isDaemonRunning()) {
       console.error(JSON.stringify({ error: 'Daemon not running' }));
       process.exit(1);
@@ -465,7 +523,7 @@ program
 
     try {
       const client = new IpcClient();
-      const response = await client.send({ cmd: 'outbox' });
+      const response = await client.send({ cmd: 'outbox', as: options.as });
       console.log(JSON.stringify(response.data));
     } catch (err) {
       console.error(JSON.stringify({ error: String(err) }));
@@ -479,7 +537,8 @@ const peers = program.command('peers').description('Manage known peers');
 peers
   .command('list')
   .description('List known peers')
-  .action(async () => {
+  .option('--as <identity>', 'List peers for specific identity (principal or nickname)')
+  .action(async (options) => {
     if (!isDaemonRunning()) {
       console.error(JSON.stringify({ error: 'Daemon not running' }));
       process.exit(1);
@@ -487,7 +546,7 @@ peers
 
     try {
       const client = new IpcClient();
-      const response = await client.send({ cmd: 'peers' });
+      const response = await client.send({ cmd: 'peers', as: options.as });
       console.log(JSON.stringify(response.data));
     } catch (err) {
       console.error(JSON.stringify({ error: String(err) }));
@@ -501,6 +560,7 @@ peers
   .argument('<principal>', 'Peer principal (stacks:ST...)')
   .argument('<address>', 'Peer address (host:port)')
   .option('--alias <alias>', 'Optional alias')
+  .option('--as <identity>', 'Add peer to specific identity (principal or nickname)')
   .action(async (principal, address, options) => {
     if (!isDaemonRunning()) {
       console.error(JSON.stringify({ error: 'Daemon not running' }));
@@ -514,6 +574,7 @@ peers
         principal,
         address,
         alias: options.alias,
+        as: options.as,
       });
 
       if (response.ok) {
@@ -532,7 +593,8 @@ peers
   .command('remove')
   .description('Remove a peer')
   .argument('<principal>', 'Peer principal')
-  .action(async (principal) => {
+  .option('--as <identity>', 'Remove peer from specific identity (principal or nickname)')
+  .action(async (principal, options) => {
     if (!isDaemonRunning()) {
       console.error(JSON.stringify({ error: 'Daemon not running' }));
       process.exit(1);
@@ -540,7 +602,7 @@ peers
 
     try {
       const client = new IpcClient();
-      const response = await client.send({ cmd: 'peer_remove', principal });
+      const response = await client.send({ cmd: 'peer_remove', principal, as: options.as });
 
       if (response.ok) {
         console.log(JSON.stringify({ status: 'removed', principal }));
@@ -553,5 +615,8 @@ peers
       process.exit(1);
     }
   });
+
+// Register gateway commands
+registerGatewayCommands(program);
 
 program.parse();

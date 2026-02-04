@@ -24,6 +24,10 @@ import {
 import { Snap2pSession, Snap2pProtocolHandler } from '../net/snap2p-protocol.js';
 import { PX1Handler } from '../net/px1.js';
 import { PeerVisibility, type PeerAddressInfo } from '../types/px1.js';
+import { IdentityManager } from './identity-manager.js';
+import { isGatewayMode, loadGatewayConfig } from './gateway-config.js';
+import type { GatewayConfig, LoadedIdentity } from '../types/gateway.js';
+import { MessageRouter } from './message-router.js';
 
 const SOCKET_NAME = 'clawchat.sock';
 const PID_FILE = 'daemon.pid';
@@ -32,27 +36,26 @@ const OUTBOX_FILE = 'outbox.json';
 const PEERS_FILE = 'peers.json';
 
 export interface DaemonConfig {
-  identity: FullIdentity;
   p2pPort: number;
   bootstrapNodes?: string[];
   enableRelay?: boolean;
   enableRelayServer?: boolean;
-  openclawWake?: boolean;  // Enable openclaw wake on message receipt
+  gatewayConfig?: GatewayConfig; // Optional: will auto-detect if not provided
 }
 
 // IPC command types
 export type IpcCommand =
-  | { cmd: 'send'; to: string; content: string }
-  | { cmd: 'recv'; since?: number; timeout?: number }
-  | { cmd: 'inbox' }
-  | { cmd: 'outbox' }
-  | { cmd: 'peers' }
-  | { cmd: 'peer_add'; principal: string; address: string; alias?: string }
-  | { cmd: 'peer_remove'; principal: string }
-  | { cmd: 'peer_resolve'; principal: string; through?: string }
-  | { cmd: 'status' }
+  | { cmd: 'send'; to: string; content: string; as?: string }
+  | { cmd: 'recv'; since?: number; timeout?: number; as?: string }
+  | { cmd: 'inbox'; as?: string }
+  | { cmd: 'outbox'; as?: string }
+  | { cmd: 'peers'; as?: string }
+  | { cmd: 'peer_add'; principal: string; address: string; alias?: string; as?: string }
+  | { cmd: 'peer_remove'; principal: string; as?: string }
+  | { cmd: 'peer_resolve'; principal: string; through?: string; as?: string }
+  | { cmd: 'status'; as?: string }
   | { cmd: 'multiaddrs' }
-  | { cmd: 'connect'; multiaddr: string }
+  | { cmd: 'connect'; multiaddr: string; as?: string }
   | { cmd: 'stop' };
 
 export interface IpcResponse {
@@ -62,7 +65,6 @@ export interface IpcResponse {
 }
 
 export class Daemon extends EventEmitter {
-  private identity: FullIdentity;
   private p2pPort: number;
   private config: DaemonConfig;
   private libp2pNode: LibP2PNode | null = null;
@@ -70,60 +72,36 @@ export class Daemon extends EventEmitter {
   private px1Handler: PX1Handler | null = null;
   private ipcServer: net.Server | null = null;
   private sessions: Map<string, Snap2pSession> = new Map();
-  private inbox: Message[] = [];
-  private outbox: Message[] = [];
-  private peers: Peer[] = [];
   private dataDir: string;
+
+  // Gateway fields (always present)
+  private gatewayConfig: GatewayConfig;
+  private identityManager: IdentityManager;
+  private messageRouter: MessageRouter;
 
   constructor(config: DaemonConfig) {
     super();
-    this.identity = config.identity;
+
+    // Load or use provided gateway config
+    if (config.gatewayConfig) {
+      this.gatewayConfig = config.gatewayConfig;
+    } else if (isGatewayMode()) {
+      this.gatewayConfig = loadGatewayConfig();
+    } else {
+      throw new Error(
+        'No gateway configuration found. Run "clawchat gateway init" to create one.'
+      );
+    }
+
+    // Initialize gateway components
+    this.identityManager = new IdentityManager();
+    this.messageRouter = new MessageRouter(this.identityManager);
+    this.dataDir = getDataDir();
+
     this.p2pPort = config.p2pPort;
     this.config = config;
-    this.dataDir = getDataDir();
-    this.loadState();
   }
 
-  private loadState(): void {
-    // Load inbox
-    const inboxPath = path.join(this.dataDir, INBOX_FILE);
-    if (fs.existsSync(inboxPath)) {
-      this.inbox = JSON.parse(fs.readFileSync(inboxPath, 'utf-8'));
-    }
-
-    // Load outbox
-    const outboxPath = path.join(this.dataDir, OUTBOX_FILE);
-    if (fs.existsSync(outboxPath)) {
-      this.outbox = JSON.parse(fs.readFileSync(outboxPath, 'utf-8'));
-    }
-
-    // Load peers
-    const peersPath = path.join(this.dataDir, PEERS_FILE);
-    if (fs.existsSync(peersPath)) {
-      this.peers = JSON.parse(fs.readFileSync(peersPath, 'utf-8'));
-    }
-  }
-
-  private saveInbox(): void {
-    fs.writeFileSync(
-      path.join(this.dataDir, INBOX_FILE),
-      JSON.stringify(this.inbox, null, 2)
-    );
-  }
-
-  private saveOutbox(): void {
-    fs.writeFileSync(
-      path.join(this.dataDir, OUTBOX_FILE),
-      JSON.stringify(this.outbox, null, 2)
-    );
-  }
-
-  private savePeers(): void {
-    fs.writeFileSync(
-      path.join(this.dataDir, PEERS_FILE),
-      JSON.stringify(this.peers, null, 2)
-    );
-  }
 
   async start(): Promise<void> {
     // Write PID file
@@ -132,9 +110,16 @@ export class Daemon extends EventEmitter {
       process.pid.toString()
     );
 
+    // Get identity for libp2p node
+    const firstIdentity = this.messageRouter.getDefaultIdentity();
+    if (!firstIdentity) {
+      throw new Error('At least one identity must be loaded to start daemon');
+    }
+    const nodeIdentity = firstIdentity.identity;
+
     // Create libp2p node
     this.libp2pNode = await createLibP2PNode({
-      identity: this.identity,
+      identity: nodeIdentity,
       listenAddrs: [
         `/ip4/0.0.0.0/tcp/${this.p2pPort}`,
         `/ip4/0.0.0.0/tcp/${this.p2pPort + 1}/ws`,
@@ -144,10 +129,26 @@ export class Daemon extends EventEmitter {
       enableRelayServer: this.config.enableRelayServer,
     });
 
-    // Set up SNaP2P protocol handler
+    // Set up SNaP2P protocol handler with identity resolver
+    const identityResolver = (remotePrincipal?: string): FullIdentity | null => {
+      if (remotePrincipal) {
+        // Find which identities allow this peer
+        const allowedIdentities = this.messageRouter.findIdentitiesForPeer(remotePrincipal);
+        if (allowedIdentities.length > 0) {
+          // Use first allowed identity
+          return allowedIdentities[0].identity;
+        }
+        return null;
+      } else {
+        // No remote principal yet, use default identity
+        const defaultIdentity = this.messageRouter.getDefaultIdentity();
+        return defaultIdentity ? defaultIdentity.identity : null;
+      }
+    };
+
     this.snap2pHandler = new Snap2pProtocolHandler(
       this.libp2pNode.node,
-      this.identity
+      identityResolver
     );
 
     this.snap2pHandler.on('session', (session: Snap2pSession) => {
@@ -170,7 +171,7 @@ export class Daemon extends EventEmitter {
     // Set up PX-1 peer exchange
     this.px1Handler = new PX1Handler(
       this.libp2pNode.node,
-      this.identity.principal
+      nodeIdentity.principal
     );
 
     this.px1Handler.on('peers:received', (peers: PeerAddressInfo[]) => {
@@ -201,10 +202,11 @@ export class Daemon extends EventEmitter {
 
     const multiaddrs = getMultiaddrs(this.libp2pNode);
 
+    const defaultIdentity = this.messageRouter.getDefaultIdentity();
     this.emit('started', {
       p2pPort: this.p2pPort,
       ipcSocket: socketPath,
-      principal: this.identity.principal,
+      principal: defaultIdentity?.identity.principal || 'unknown',
       peerId: this.libp2pNode.peerId,
       multiaddrs,
     });
@@ -216,8 +218,13 @@ export class Daemon extends EventEmitter {
 
     this.sessions.set(remote, session);
 
+    // Get the identity for this session
+    const localPrincipal = session.localPrincipal;
+    const identity = this.identityManager.getIdentity(localPrincipal);
+    if (!identity) return;
+
     // Update peer lastSeen and add peerId if we have it
-    const peer = this.peers.find(p => p.principal === remote);
+    const peer = identity.peers.find((p: Peer) => p.principal === remote);
     if (peer) {
       peer.lastSeen = Date.now();
       // Store the multiaddrs if available
@@ -233,7 +240,7 @@ export class Daemon extends EventEmitter {
           peer.address = allAddrs.join(',');
         }
       }
-      this.savePeers();
+      this.identityManager.savePeers(localPrincipal);
 
       // Add to PX-1 cache as verified
       if (this.px1Handler && session.peerId) {
@@ -249,23 +256,34 @@ export class Daemon extends EventEmitter {
   }
 
   private handleMessage(msg: { id: string; from: string; nick?: string; content: string; timestamp: number }, session: Snap2pSession): void {
+    // Use session's local identity as recipient
+    const recipientPrincipal = session.localPrincipal;
+
     const message: Message = {
       id: msg.id,
       from: msg.from,
       fromNick: msg.nick,
-      to: this.identity.principal,
+      to: recipientPrincipal,
       content: msg.content,
       timestamp: msg.timestamp,
       status: 'delivered',
     };
 
-    this.inbox.push(message);
-    this.saveInbox();
+    // Route message with ACL enforcement
+    const result = this.messageRouter.routeInbound(message, msg.from);
+    if (!result.success) {
+      console.warn(`[gateway] Message routing failed: ${result.error}`);
+      return;
+    }
+
+    // Add to target identity's inbox
+    this.identityManager.addToInbox(message.to, message);
+    this.identityManager.saveInbox(message.to);
 
     this.emit('message', message);
 
-    // Trigger openclaw wake if enabled
-    if (this.config.openclawWake) {
+    // Trigger openclaw wake if enabled for this identity
+    if (result.identity!.config.openclawWake) {
       this.triggerOpenclawWake(message);
     }
   }
@@ -306,28 +324,34 @@ export class Daemon extends EventEmitter {
   }
 
   private handleReceivedPeers(peers: PeerAddressInfo[]): void {
-    for (const peerInfo of peers) {
-      // Don't add ourselves
-      if (peerInfo.principal === this.identity.principal) continue;
+    // Add discovered peers to all loaded identities
+    const identities = this.identityManager.getAllIdentities();
 
-      const existing = this.peers.find(p => p.principal === peerInfo.principal);
-      if (existing) {
-        // Merge multiaddrs
-        const existingAddrs = existing.address?.split(',') ?? [];
-        const newAddrs = [...new Set([...existingAddrs, ...peerInfo.multiaddrs])];
-        existing.address = newAddrs.join(',');
-        existing.lastSeen = Math.max(existing.lastSeen ?? 0, peerInfo.lastSeen);
-      } else {
-        // Add new peer
-        this.peers.push({
-          principal: peerInfo.principal,
-          address: peerInfo.multiaddrs.join(','),
-          lastSeen: peerInfo.lastSeen,
-        });
+    for (const identity of identities) {
+      for (const peerInfo of peers) {
+        // Don't add ourselves
+        if (peerInfo.principal === identity.identity.principal) continue;
+
+        const existing = identity.peers.find((p: Peer) => p.principal === peerInfo.principal);
+        if (existing) {
+          // Merge multiaddrs
+          const existingAddrs = existing.address?.split(',') ?? [];
+          const newAddrs = [...new Set([...existingAddrs, ...peerInfo.multiaddrs])];
+          existing.address = newAddrs.join(',');
+          existing.lastSeen = Math.max(existing.lastSeen ?? 0, peerInfo.lastSeen);
+        } else {
+          // Add new peer
+          identity.peers.push({
+            principal: peerInfo.principal,
+            address: peerInfo.multiaddrs.join(','),
+            lastSeen: peerInfo.lastSeen,
+          });
+        }
       }
+
+      this.identityManager.savePeers(identity.identity.principal);
     }
 
-    this.savePeers();
     this.emit('peers:discovered', peers);
   }
 
@@ -383,21 +407,46 @@ export class Daemon extends EventEmitter {
     return this.handleIpcCommand(cmd);
   }
 
+  /**
+   * Get identity from command 'as' field or default
+   */
+  private getIdentityForCommand(asParam?: string): LoadedIdentity | null {
+    if (asParam) {
+      // Use specified identity (principal or nickname)
+      const identity = this.identityManager.getIdentity(asParam);
+      if (!identity) {
+        return null;
+      }
+      return identity;
+    } else {
+      // Use default identity
+      return this.messageRouter.getDefaultIdentity();
+    }
+  }
+
   private async handleIpcCommand(cmd: IpcCommand): Promise<IpcResponse> {
     switch (cmd.cmd) {
       case 'send': {
         const id = Buffer.from(randomBytes(16)).toString('hex');
+
+        // Get identity from --as parameter or default
+        const sourceIdentity = this.getIdentityForCommand(cmd.as);
+        if (!sourceIdentity) {
+          return { ok: false, error: cmd.as ? `Identity not found: ${cmd.as}` : 'No identities loaded' };
+        }
+
         const message: Message = {
           id,
-          from: this.identity.principal,
+          from: sourceIdentity.identity.principal,
           to: cmd.to,
           content: cmd.content,
           timestamp: Date.now(),
           status: 'pending',
         };
 
-        this.outbox.push(message);
-        this.saveOutbox();
+        // Add to source identity's outbox
+        this.identityManager.addToOutbox(sourceIdentity.identity.principal, message);
+        this.identityManager.saveOutbox(sourceIdentity.identity.principal);
 
         // Try immediate delivery
         await this.tryDeliver(message);
@@ -409,53 +458,79 @@ export class Daemon extends EventEmitter {
         const since = cmd.since || 0;
         const timeout = cmd.timeout;
 
+        const identity = this.getIdentityForCommand(cmd.as);
+        if (!identity) {
+          return { ok: false, error: cmd.as ? `Identity not found: ${cmd.as}` : 'No identities loaded' };
+        }
+
         // If no timeout, return immediately
         if (!timeout || timeout <= 0) {
-          const messages = this.inbox.filter(m => m.timestamp > since);
+          const messages = identity.inbox.filter(m => m.timestamp > since);
           return { ok: true, data: messages };
         }
 
         // Wait for messages with timeout
-        return await this.recvWithTimeout(since, timeout);
+        return await this.recvWithTimeout(since, timeout, identity.identity.principal);
       }
 
-      case 'inbox':
-        return { ok: true, data: this.inbox };
+      case 'inbox': {
+        const identity = this.getIdentityForCommand(cmd.as);
+        if (!identity) {
+          return { ok: false, error: cmd.as ? `Identity not found: ${cmd.as}` : 'No identities loaded' };
+        }
+        return { ok: true, data: identity.inbox };
+      }
 
-      case 'outbox':
-        return { ok: true, data: this.outbox };
+      case 'outbox': {
+        const identity = this.getIdentityForCommand(cmd.as);
+        if (!identity) {
+          return { ok: false, error: cmd.as ? `Identity not found: ${cmd.as}` : 'No identities loaded' };
+        }
+        return { ok: true, data: identity.outbox };
+      }
 
-      case 'peers':
+      case 'peers': {
+        const identity = this.getIdentityForCommand(cmd.as);
+        if (!identity) {
+          return { ok: false, error: cmd.as ? `Identity not found: ${cmd.as}` : 'No identities loaded' };
+        }
         return {
           ok: true,
-          data: this.peers.map(p => ({
+          data: identity.peers.map(p => ({
             ...p,
             connected: this.sessions.has(p.principal),
           })),
         };
+      }
 
       case 'peer_add': {
-        const existing = this.peers.findIndex(p => p.principal === cmd.principal);
         const peer: Peer = {
           principal: cmd.principal,
-          address: cmd.address, // Can be multiaddr or host:port
+          address: cmd.address,
           alias: cmd.alias,
           lastSeen: Date.now(),
         };
 
-        if (existing >= 0) {
-          this.peers[existing] = peer;
-        } else {
-          this.peers.push(peer);
+        const identity = this.getIdentityForCommand(cmd.as);
+        if (!identity) {
+          return { ok: false, error: cmd.as ? `Identity not found: ${cmd.as}` : 'No identities loaded' };
         }
-        this.savePeers();
+
+        this.identityManager.addOrUpdatePeer(identity.identity.principal, peer);
+        this.identityManager.savePeers(identity.identity.principal);
 
         return { ok: true, data: peer };
       }
 
       case 'peer_remove': {
-        this.peers = this.peers.filter(p => p.principal !== cmd.principal);
-        this.savePeers();
+        const identity = this.getIdentityForCommand(cmd.as);
+        if (!identity) {
+          return { ok: false, error: cmd.as ? `Identity not found: ${cmd.as}` : 'No identities loaded' };
+        }
+
+        identity.peers = identity.peers.filter(p => p.principal !== cmd.principal);
+        this.identityManager.savePeers(identity.identity.principal);
+
         return { ok: true };
       }
 
@@ -480,19 +555,25 @@ export class Daemon extends EventEmitter {
         }
       }
 
-      case 'status':
+      case 'status': {
+        const identity = this.getIdentityForCommand(cmd.as);
         return {
           ok: true,
           data: {
-            principal: this.identity.principal,
+            principal: identity?.identity.principal || 'unknown',
             peerId: this.libp2pNode?.peerId,
             p2pPort: this.p2pPort,
             multiaddrs: this.libp2pNode ? getMultiaddrs(this.libp2pNode) : [],
             connectedPeers: Array.from(this.sessions.keys()),
-            inboxCount: this.inbox.length,
-            outboxCount: this.outbox.filter(m => m.status === 'pending').length,
+            inboxCount: identity?.inbox.length || 0,
+            outboxCount: identity?.outbox.filter((m: Message) => m.status === 'pending').length || 0,
+            loadedIdentities: this.identityManager.getAllIdentities().map(id => ({
+              principal: id.identity.principal,
+              nick: id.config.nick,
+            })),
           },
         };
+      }
 
       case 'multiaddrs':
         return {
@@ -537,16 +618,19 @@ export class Daemon extends EventEmitter {
    * Wait for messages with a timeout
    * Returns all messages received since `since` timestamp, waiting up to `timeout` ms
    */
-  private async recvWithTimeout(since: number, timeout: number): Promise<IpcResponse> {
+  private async recvWithTimeout(since: number, timeout: number, principal: string): Promise<IpcResponse> {
     const startTime = Date.now();
     const endTime = startTime + timeout;
 
     // Collect messages that arrive during the timeout period
     const collectedMessages: Message[] = [];
 
-    // Get any existing messages first
-    const existingMessages = this.inbox.filter(m => m.timestamp > since);
-    collectedMessages.push(...existingMessages);
+    // Get any existing messages first for the specified identity
+    const identity = this.identityManager.getIdentity(principal);
+    if (identity) {
+      const existingMessages = identity.inbox.filter((m: Message) => m.timestamp > since);
+      collectedMessages.push(...existingMessages);
+    }
 
     // If we already have messages, we could return immediately
     // But the user wants to wait for the full timeout to catch ACKs, etc.
@@ -554,7 +638,8 @@ export class Daemon extends EventEmitter {
 
     return new Promise((resolve) => {
       const messageHandler = (msg: Message) => {
-        if (msg.timestamp > since) {
+        // Only collect messages for the specified identity
+        if (msg.timestamp > since && msg.to === principal) {
           collectedMessages.push(msg);
         }
       };
@@ -576,6 +661,47 @@ export class Daemon extends EventEmitter {
   }
 
   private async tryDeliver(message: Message): Promise<boolean> {
+    // ALIAS RESOLUTION: Check if message.to is an alias and resolve to principal
+    // Check all identities' peer lists for alias matches
+    if (!message.to.startsWith('stacks:')) {
+      const identities = this.identityManager.getAllIdentities();
+      for (const identity of identities) {
+        const peer = identity.peers.find((p: Peer) => p.alias === message.to);
+        if (peer) {
+          message.to = peer.principal;
+          break;
+        }
+      }
+    }
+    
+    // LOCAL DELIVERY: Check if recipient is a co-hosted identity in this gateway
+    const recipientIdentity = this.identityManager.getIdentity(message.to);
+    if (recipientIdentity) {
+      // Deliver directly to local identity's inbox
+      this.identityManager.addToInbox(message.to, {
+        ...message,
+        status: 'delivered',
+      });
+      this.identityManager.saveInbox(message.to);
+
+      // Update sender's outbox status
+      message.status = 'sent';
+      const senderIdentity = this.identityManager.getIdentity(message.from);
+      if (senderIdentity) {
+        this.identityManager.saveOutbox(message.from);
+      }
+
+      // Emit message event for local delivery
+      this.emit('message', { ...message, status: 'delivered' });
+
+      // Trigger openclaw wake if enabled for recipient
+      if (recipientIdentity.config.openclawWake) {
+        this.triggerOpenclawWake(message);
+      }
+
+      return true;
+    }
+
     // Check if we have an active session
     let session = this.sessions.get(message.to);
 
@@ -583,7 +709,11 @@ export class Daemon extends EventEmitter {
       try {
         await session.sendChatMessage(message.content);
         message.status = 'sent';
-        this.saveOutbox();
+        // Save to sender's outbox
+        const senderIdentity = this.identityManager.getIdentity(message.from);
+        if (senderIdentity) {
+          this.identityManager.saveOutbox(message.from);
+        }
         return true;
       } catch {
         // Session might be stale, remove it
@@ -591,8 +721,25 @@ export class Daemon extends EventEmitter {
       }
     }
 
-    // Try to connect to the peer
-    const peer = this.peers.find(p => p.principal === message.to);
+    // Try to connect to the peer - check all identities for peer info
+    const identities = this.identityManager.getAllIdentities();
+    let peer: Peer | undefined;
+    let resolvedPrincipal = message.to;
+    
+    for (const identity of identities) {
+      // First try to match by principal directly
+      peer = identity.peers.find((p: Peer) => p.principal === message.to);
+      if (peer) break;
+      
+      // Then try to match by alias
+      peer = identity.peers.find((p: Peer) => p.alias === message.to);
+      if (peer) {
+        // Update message.to to the resolved principal for future lookups
+        resolvedPrincipal = peer.principal;
+        message.to = peer.principal;
+        break;
+      }
+    }
     if (!peer?.address) {
       // Try PX-1 resolution through connected peers
       if (this.px1Handler && this.sessions.size > 0) {
@@ -609,7 +756,11 @@ export class Daemon extends EventEmitter {
                     try {
                       await session.sendChatMessage(message.content);
                       message.status = 'sent';
-                      this.saveOutbox();
+                      // Save to sender's outbox
+                      const senderIdentity = this.identityManager.getIdentity(message.from);
+                      if (senderIdentity) {
+                        this.identityManager.saveOutbox(message.from);
+                      }
                       return true;
                     } catch {
                       // Continue trying
@@ -634,7 +785,11 @@ export class Daemon extends EventEmitter {
           try {
             await session.sendChatMessage(message.content);
             message.status = 'sent';
-            this.saveOutbox();
+            // Save to sender's outbox
+            const senderIdentity = this.identityManager.getIdentity(message.from);
+            if (senderIdentity) {
+              this.identityManager.saveOutbox(message.from);
+            }
             return true;
           } catch {
             // Continue trying
@@ -678,10 +833,15 @@ export class Daemon extends EventEmitter {
   }
 
   private async processOutbox(): Promise<void> {
-    const pending = this.outbox.filter(m => m.status === 'pending');
+    // Process outbox for all loaded identities
+    const identities = this.identityManager.getAllIdentities();
 
-    for (const message of pending) {
-      await this.tryDeliver(message);
+    for (const identity of identities) {
+      const pending = identity.outbox.filter((m: Message) => m.status === 'pending');
+
+      for (const message of pending) {
+        await this.tryDeliver(message);
+      }
     }
   }
 

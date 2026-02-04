@@ -64,3 +64,7 @@ export interface NodeKeyAttestation {
   domain: string;
   signature: Uint8Array;
 }
+
+// Gateway architecture types
+export type { IdentityConfig, GatewayConfig, LoadedIdentity } from './types/gateway.js';
+export { GatewayConfigError } from './types/gateway.js';

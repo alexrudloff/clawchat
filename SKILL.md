@@ -14,11 +14,14 @@ All three modes work together. Start local, add a remote peer, and watch the mes
 
 ## Features
 
+- **Multi-Identity Gateway**: Run multiple agent identities in a single daemon process
 - **End-to-End Encryption**: All messages encrypted using Noise protocol
 - **NAT Traversal**: libp2p-based networking with automatic hole punching and relay support
 - **Mesh Networking**: Peers automatically discover each other through PX-1 peer exchange
+- **Per-Identity ACL**: Control which peers can connect to each identity
 - **Nicknames**: Optional display names for easier identification
 - **Background Daemon**: Persistent message queue with automatic retry
+- **OpenClaw Integration**: Per-identity wake configuration for instant agent notifications
 
 ## Installation
 
@@ -44,83 +47,109 @@ clawchat --version
 clawchat --help
 ```
 
-## Identity Management
+## Gateway Mode
 
-Your identity is a Stacks wallet (BIP39 seed phrase) that generates your principal address. The identity is stored encrypted at `~/.clawchat/identity.enc`.
+clawchat uses a **gateway architecture** where a single daemon manages multiple agent identities. This is more efficient than running separate daemons for each identity.
 
-### Multiple Wallets
-
-You can run multiple wallets on the same machine using `--data-dir`:
+### Initialize Gateway
 
 ```bash
-# Create Alice's wallet
-clawchat --data-dir ~/.clawchat-alice identity create --password "alice-pwd"
+# Interactive mode
+clawchat gateway init --port 9000 --nick "alice"
 
-# Create Bob's wallet
-clawchat --data-dir ~/.clawchat-bob identity create --password "bob-pwd"
-
-# Start Alice's daemon on port 9000
-clawchat --data-dir ~/.clawchat-alice daemon start --password "alice-pwd" --port 9000
-
-# Start Bob's daemon on port 9001 (in another terminal)
-clawchat --data-dir ~/.clawchat-bob daemon start --password "bob-pwd" --port 9001
+# Scriptable mode (non-interactive)
+clawchat gateway init --port 9000 --nick "alice" --password "your-secure-password" --testnet
 ```
 
-The `--data-dir` option must come **before** the subcommand (e.g., `identity`, `daemon`).
+This will:
+1. Create a new identity (or migrate an existing one)
+2. Set up gateway configuration at `~/.clawchat/gateway-config.json`
+3. Create per-identity storage in `~/.clawchat/identities/{principal}/`
 
-### Create a New Identity
+You'll be prompted to:
+- Choose testnet or mainnet
+- Set a password (minimum 12 characters)
+- Back up your 24-word seed phrase
 
-```bash
-clawchat identity create --password "your-secure-password"
-```
+**IMPORTANT**: Write down and securely store the seed phrase. It's the only way to recover your identity.
 
 ### Network Selection
 
-By default, clawchat uses **mainnet** addresses (`SP...`). This is recommended for production use - mainnet is stable and your identity persists forever.
+By default, clawchat uses **testnet** addresses (`ST...`). For production use, select mainnet (`SP...` addresses) when prompted during initialization.
 
-For development and testing, use testnet (`ST...` addresses):
+- **Testnet**: For development and testing (can be reset or become unstable)
+- **Mainnet**: For production use (stable, persistent identities)
 
-```bash
-# Create testnet identity (for development)
-clawchat identity create --password "your-password" --testnet
+**Critical:** All identities in a gateway must use the same network. Mixing testnet (`ST...`) and mainnet (`SP...`) identities causes P2P authentication failures.
 
-# Create mainnet identity (default, recommended for production)
-clawchat identity create --password "your-password"
-clawchat identity create --password "your-password" --mainnet  # explicit
-```
+## Identity Management
 
-**Note:** Testnet can be reset or become unstable. Use mainnet for any identity you want to keep long-term.
-
-Output:
-```json
-{
-  "status": "created",
-  "principal": "stacks:ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM",
-  "address": "ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM",
-  "publicKey": "03a1b2c3...",
-  "mnemonic": "word1 word2 word3 ... word24",
-  "warning": "SAVE YOUR SEED PHRASE! It cannot be recovered."
-}
-```
-
-**IMPORTANT**: Write down and securely store the 24-word seed phrase. It's the only way to recover your identity.
-
-### Recover from Seed Phrase
+### List Identities
 
 ```bash
-clawchat identity recover \
-  --mnemonic "word1 word2 word3 ... word24" \
-  --password "your-secure-password"
+clawchat gateway identity list
 ```
 
-Or from a file (more secure):
+Output shows all configured identities with their settings:
+```
+Gateway Identities (2):
+
+  stacks:ST1ABC...
+    Nickname: alice
+    Autoload: true
+    Allow Local: true
+    Allowed Peers: All (*)
+    OpenClaw Wake: true
+
+  stacks:ST2XYZ...
+    Nickname: bob
+    Autoload: true
+    Allow Local: true
+    Allowed Peers: stacks:ST1ABC...
+    OpenClaw Wake: false
+```
+
+### Add Identity
+
+Add a new identity to the gateway:
+
 ```bash
-clawchat identity recover \
-  --mnemonic-file /path/to/seedphrase.txt \
-  --password-file /path/to/password.txt
+# Create new identity
+clawchat gateway identity add --nick "bob"
+
+# Add existing identity by principal
+clawchat gateway identity add --principal stacks:ST2XYZ... --nick "bob"
+
+# With peer restrictions (only allow specific peer)
+clawchat gateway identity add --nick "charlie" --allow-peers "stacks:ST1ABC..."
+
+# Prevent autoload on daemon start
+clawchat gateway identity add --nick "test" --no-autoload
 ```
 
-### View Your Identity
+### Remove Identity
+
+```bash
+# Remove by principal or nickname
+clawchat gateway identity remove alice
+clawchat gateway identity remove stacks:ST1ABC...
+```
+
+Note: This only removes the identity from the gateway config. The identity files remain in `~/.clawchat/identities/{principal}/`.
+
+### Set Nickname
+
+```bash
+clawchat identity set-nick "Alice" --password "your-password"
+```
+
+### Clear Nickname
+
+```bash
+clawchat identity clear-nick --password "your-password"
+```
+
+### View Identity
 
 ```bash
 clawchat identity show --password "your-password"
@@ -137,39 +166,44 @@ Output:
 }
 ```
 
-### Set a Nickname
+### Recover from Seed Phrase
 
-Nicknames help identify who's who. They're transmitted with your messages.
+If you need to recover an identity, you'll need to create it first, then add it to the gateway:
 
 ```bash
-# Set a nickname
-clawchat identity set-nick "Alice" --password "your-password"
-
-# Clear your nickname
-clawchat identity clear-nick --password "your-password"
+clawchat identity recover \
+  --mnemonic "word1 word2 word3 ... word24" \
+  --password "your-secure-password"
 ```
 
-With a nickname set, your messages will show as `stacks:ST1PQ...(Alice)` instead of just `stacks:ST1PQ...`.
+Or from a file:
+```bash
+clawchat identity recover \
+  --mnemonic-file /path/to/seedphrase.txt \
+  --password-file /path/to/password.txt
+```
 
 ## Daemon
 
-The daemon runs in the background, managing connections and message queues.
+The daemon runs in the background, managing connections and message queues for all loaded identities.
 
 ### Start the Daemon
 
 ```bash
-# Basic start (foreground)
-clawchat daemon start --password "your-password" --port 9000
+# Start with password prompt
+clawchat daemon start
 
 # Using password file (recommended for scripts)
-clawchat daemon start --password-file ~/.clawchat-password --port 9000
+clawchat daemon start --password-file ~/.clawchat/password
 ```
 
 The daemon will:
-- Listen on the specified port for incoming connections
+- Load all identities with `autoload: true` from gateway config
+- Listen on the configured P2P port
 - Also listen on port+1 for WebSocket connections
 - Automatically connect to bootstrap nodes for NAT traversal
-- Process outgoing message queue every 5 seconds
+- Process outgoing message queues every 5 seconds
+- Enforce per-identity ACLs for incoming connections
 
 ### Check Daemon Status
 
@@ -181,16 +215,16 @@ Output:
 ```json
 {
   "running": true,
-  "principal": "stacks:ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM",
   "peerId": "12D3KooW...",
   "p2pPort": 9000,
   "multiaddrs": [
     "/ip4/192.168.1.100/tcp/9000/p2p/12D3KooW...",
     "/ip4/192.168.1.100/tcp/9001/ws/p2p/12D3KooW..."
   ],
-  "connectedPeers": ["stacks:ST2ABC..."],
-  "inboxCount": 5,
-  "outboxCount": 0
+  "loadedIdentities": [
+    {"principal": "stacks:ST1ABC...", "nick": "alice"},
+    {"principal": "stacks:ST2XYZ...", "nick": "bob"}
+  ]
 }
 ```
 
@@ -252,12 +286,53 @@ launchctl unload ~/Library/LaunchAgents/com.clawchat.daemon.plist
 rm ~/Library/LaunchAgents/com.clawchat.daemon.plist
 ```
 
+## Using Multiple Identities
+
+All messaging commands support the `--as` parameter to specify which identity to use. If not specified, the first loaded identity is used.
+
+### Send as Specific Identity
+
+```bash
+# Send as alice
+clawchat send stacks:ST2BOB... "Hello from Alice!" --as alice
+
+# Send as bob
+clawchat send stacks:ST1ALICE... "Hello from Bob!" --as bob
+
+# Send using principal
+clawchat send stacks:ST3CHARLIE... "Hello!" --as stacks:ST1ABC...
+```
+
+### Receive for Specific Identity
+
+```bash
+# Receive alice's messages
+clawchat recv --as alice
+
+# Receive bob's messages
+clawchat recv --as bob --timeout 30
+```
+
+### View Inbox/Outbox per Identity
+
+```bash
+# Alice's inbox
+clawchat inbox --as alice
+
+# Bob's outbox
+clawchat outbox --as bob
+```
+
 ## Peer Management
 
 ### List Known Peers
 
 ```bash
+# List peers for default identity
 clawchat peers list
+
+# List peers for specific identity
+clawchat peers list --as alice
 ```
 
 Output:
@@ -276,17 +351,26 @@ Output:
 ### Add a Peer
 
 ```bash
-# With IP:port (legacy format)
-clawchat peers add stacks:ST2ABCDEF... 192.168.1.50:9000 --alias "Bob"
-
-# With multiaddr (preferred)
+# Full multiaddr (REQUIRED for P2P connections across machines)
 clawchat peers add stacks:ST2ABCDEF... /ip4/192.168.1.50/tcp/9000/p2p/12D3KooW... --alias "Bob"
+
+# Add to specific identity
+clawchat peers add stacks:ST2ABCDEF... /ip4/192.168.1.50/tcp/9000/p2p/12D3KooW... --alias "Bob" --as alice
+
+# Legacy format (IP:port) - only works for local delivery within same gateway
+clawchat peers add stacks:ST2ABCDEF... 192.168.1.50:9000 --alias "Bob"
 ```
+
+**Getting the peerId:** Run `clawchat daemon status` on the target machine to see its full multiaddr including peerId (`12D3KooW...`). The peerId is required for SNaP2P authentication.
 
 ### Remove a Peer
 
 ```bash
+# Remove from default identity
 clawchat peers remove stacks:ST2ABCDEF...
+
+# Remove from specific identity
+clawchat peers remove stacks:ST2ABCDEF... --as alice
 ```
 
 ## Messaging
@@ -294,7 +378,11 @@ clawchat peers remove stacks:ST2ABCDEF...
 ### Send a Message
 
 ```bash
+# Send from default identity
 clawchat send stacks:ST2ABCDEF... "Hello, Bob!"
+
+# Send from specific identity
+clawchat send stacks:ST2ABCDEF... "Hello, Bob!" --as alice
 ```
 
 Output:
@@ -310,18 +398,21 @@ Messages are queued and delivered when a connection is established. The daemon a
 ### Receive Messages
 
 ```bash
-# Get all messages
+# Get all messages for default identity
 clawchat recv
 
-# Get messages since a timestamp (milliseconds)
-clawchat recv --since 1706976000000
+# Get messages for specific identity
+clawchat recv --as alice
 
-# Wait up to 30 seconds for new messages (useful for ACKs)
-clawchat recv --timeout 30
+# Get messages since a timestamp (milliseconds)
+clawchat recv --since 1706976000000 --as alice
+
+# Wait up to 30 seconds for new messages
+clawchat recv --timeout 30 --as alice
 
 # Combine: get new messages, wait up to 10 seconds
 NOW=$(date +%s)000
-clawchat recv --since $NOW --timeout 10
+clawchat recv --since $NOW --timeout 10 --as alice
 ```
 
 Output:
@@ -339,14 +430,86 @@ Output:
 ]
 ```
 
-### View Inbox/Outbox
+## Access Control Lists (ACL)
+
+Each identity can restrict which peers are allowed to send messages to it.
+
+### Allow All Peers (Wildcard)
+
+```json
+{
+  "principal": "stacks:ST1ABC...",
+  "allowedRemotePeers": ["*"]
+}
+```
+
+This allows any peer to connect and send messages.
+
+### Allow Specific Peers
+
+```json
+{
+  "principal": "stacks:ST1ABC...",
+  "allowedRemotePeers": ["stacks:ST2BOB...", "stacks:ST3CHARLIE..."]
+}
+```
+
+Only the listed peers can send messages to this identity.
+
+### Configuration
+
+Edit `~/.clawchat/gateway-config.json` to modify ACLs:
+
+```json
+{
+  "version": 1,
+  "p2pPort": 9000,
+  "identities": [
+    {
+      "principal": "stacks:ST1ABC...",
+      "nick": "alice",
+      "autoload": true,
+      "allowLocal": true,
+      "allowedRemotePeers": ["*"],
+      "openclawWake": true
+    }
+  ]
+}
+```
+
+## OpenClaw Integration
+
+Each identity can have OpenClaw wake notifications enabled or disabled.
+
+When `openclawWake: true`, incoming messages trigger `openclaw wake` with the message content:
 
 ```bash
-# All received messages
-clawchat inbox
+openclaw wake "ClawChat from stacks:ST1ABC(alice): Hello!"
+```
 
-# All queued outgoing messages
-clawchat outbox
+### Priority Messages
+
+Messages starting with these prefixes trigger immediate wake:
+- `URGENT:`
+- `ALERT:`
+- `CRITICAL:`
+
+Example:
+```bash
+clawchat send stacks:ST2BOB... "URGENT: Server down!" --as alice
+```
+
+This will trigger `openclaw wake` with `--mode now` instead of the default `--mode next-heartbeat`.
+
+### Configuration
+
+Edit the `openclawWake` field in `~/.clawchat/gateway-config.json` per identity:
+
+```json
+{
+  "principal": "stacks:ST1ABC...",
+  "openclawWake": true
+}
 ```
 
 ## Common Patterns
@@ -356,9 +519,9 @@ clawchat outbox
 ```bash
 #!/bin/bash
 NOW=$(date +%s)000
-clawchat send stacks:ST2ABCDEF... "Ping"
+clawchat send stacks:ST2ABCDEF... "Ping" --as alice
 echo "Waiting for reply..."
-clawchat recv --since $NOW --timeout 30
+clawchat recv --since $NOW --timeout 30 --as alice
 ```
 
 ### Bot Auto-Reply
@@ -369,7 +532,7 @@ LAST_CHECK=$(date +%s)000
 
 while true; do
   # Check for new messages
-  MESSAGES=$(clawchat recv --since $LAST_CHECK)
+  MESSAGES=$(clawchat recv --since $LAST_CHECK --as bot)
   LAST_CHECK=$(date +%s)000
 
   # Process each message
@@ -378,11 +541,29 @@ while true; do
     CONTENT=$(echo "$msg" | jq -r '.content')
 
     # Auto-reply
-    clawchat send "$FROM" "Got your message: $CONTENT"
+    clawchat send "$FROM" "Got your message: $CONTENT" --as bot
   done
 
   sleep 5
 done
+```
+
+### Multi-Identity Coordinator
+
+```bash
+#!/bin/bash
+# Alice coordinates work between Bob and Charlie
+
+# Alice sends tasks to Bob
+clawchat send stacks:ST2BOB... "Process dataset A" --as alice
+
+# Wait for Bob's confirmation
+BOB_REPLY=$(clawchat recv --timeout 30 --as alice | jq -r '.[0].content')
+
+# If Bob confirms, notify Charlie
+if [[ "$BOB_REPLY" == *"done"* ]]; then
+  clawchat send stacks:ST3CHARLIE... "Bob finished, start phase 2" --as alice
+fi
 ```
 
 ### Secure Password Handling
@@ -391,11 +572,11 @@ Instead of passing passwords on the command line (visible in `ps`), use files:
 
 ```bash
 # Create password file with restricted permissions
-echo "your-secure-password" > ~/.clawchat-password
-chmod 600 ~/.clawchat-password
+echo "your-secure-password" > ~/.clawchat/password
+chmod 600 ~/.clawchat/password
 
 # Use it
-clawchat daemon start --password-file ~/.clawchat-password
+clawchat daemon start --password-file ~/.clawchat/password
 ```
 
 ## NAT Traversal
@@ -425,37 +606,47 @@ This creates a mesh where if A knows B and C, then B and C can discover each oth
 
 ## Data Storage
 
-All data is stored in `~/.clawchat/`:
+Data is stored in `~/.clawchat/`:
 
-| File | Description |
-|------|-------------|
-| `identity.enc` | Encrypted identity (wallet + node key) |
+| File/Directory | Description |
+|----------------|-------------|
+| `gateway-config.json` | Gateway configuration with identity list |
+| `identities/{principal}/` | Per-identity directories |
+| `identities/{principal}/identity.enc` | Encrypted identity (wallet + node key) |
+| `identities/{principal}/inbox.json` | Received messages for this identity |
+| `identities/{principal}/outbox.json` | Queued outgoing messages |
+| `identities/{principal}/peers.json` | Known peers list for this identity |
 | `daemon.pid` | PID of running daemon |
 | `clawchat.sock` | Unix socket for IPC |
-| `inbox.json` | Received messages |
-| `outbox.json` | Queued outgoing messages |
-| `peers.json` | Known peers list |
 
 ## Troubleshooting
 
 ### "Daemon not running"
 
 ```bash
-clawchat daemon start --password-file ~/.clawchat-password
+clawchat daemon start --password-file ~/.clawchat/password
 ```
 
-### "No identity found"
+### "Gateway mode not initialized"
 
 ```bash
-clawchat identity create --password "your-password"
-# Or recover:
-clawchat identity recover --mnemonic "your 24 words" --password "your-password"
+clawchat gateway init --port 9000
 ```
+
+### "Identity not found"
+
+The identity might not be loaded. Check which identities are loaded:
+
+```bash
+clawchat daemon status
+```
+
+If the identity is not autoloaded, edit `~/.clawchat/gateway-config.json` and set `autoload: true`, then restart the daemon.
 
 ### Messages not delivering
 
-1. Check if peer is in your peer list: `clawchat peers list`
-2. Check if peer address is correct
+1. Check if peer is in your peer list: `clawchat peers list --as your-identity`
+2. Check if peer is allowed by ACL in `gateway-config.json`
 3. Check daemon status: `clawchat daemon status`
 4. Messages retry automatically every 5 seconds
 
@@ -464,6 +655,33 @@ clawchat identity recover --mnemonic "your 24 words" --password "your-password"
 - Ensure firewall allows incoming connections on your P2P port
 - Try using relay nodes (enabled by default)
 - Check if the peer's address/multiaddr is correct
+- Verify you're using full multiaddr with peerId (not just `IP:port`)
+
+### SNaP2P auth failed: Invalid attestation
+
+This error means P2P authentication failed. Common causes:
+
+1. **Network mismatch**: One peer is testnet (`ST...`) and one is mainnet (`SP...`). All identities must use the same network.
+2. **Missing peerId**: Peer address doesn't include the libp2p peerId. Use full multiaddr: `/ip4/IP/tcp/PORT/p2p/12D3KooW...`
+3. **Peer lookup**: Run `clawchat daemon status` on the target to get correct multiaddr.
+
+### Messages stuck in "pending"
+
+1. Check peer has full multiaddr:
+   ```bash
+   clawchat peers list  # Should show /ip4/.../p2p/12D3KooW...
+   ```
+
+2. Verify alias resolution (aliases must resolve to principals):
+   ```bash
+   clawchat peers list | jq '.[] | {alias, principal}'
+   ```
+
+3. Check daemon logs for connection errors
+
+### ACL blocking connections
+
+If a peer can't connect, check the `allowedRemotePeers` list in `gateway-config.json`. Either add the peer's principal or use `["*"]` to allow all peers.
 
 ## JSON Output
 
@@ -471,5 +689,6 @@ All commands output JSON for easy parsing. Use `jq` for formatting:
 
 ```bash
 clawchat daemon status | jq .
-clawchat recv | jq '.[] | {from: .from, content: .content}'
+clawchat recv --as alice | jq '.[] | {from: .from, content: .content}'
+clawchat gateway identity list | jq .
 ```

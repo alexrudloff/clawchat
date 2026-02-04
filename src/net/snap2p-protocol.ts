@@ -162,6 +162,13 @@ export class Snap2pSession extends EventEmitter {
   }
 
   /**
+   * Get the local identity principal for this session
+   */
+  get localPrincipal(): string {
+    return this.identity.principal;
+  }
+
+  /**
    * Perform authentication as initiator (we opened the stream)
    */
   async authenticateAsInitiator(): Promise<void> {
@@ -375,15 +382,26 @@ export class Snap2pSession extends EventEmitter {
 /**
  * SNaP2P protocol handler for libp2p
  */
+/**
+ * Callback to determine which identity to use for a session
+ * Used in gateway mode to select identity based on remote peer
+ */
+export type IdentityResolver = (remotePrincipal?: string) => FullIdentity | null;
+
 export class Snap2pProtocolHandler extends EventEmitter {
   private node: Libp2p;
-  private identity: FullIdentity;
+  private identityResolver: IdentityResolver;
   private sessions: Map<string, Snap2pSession> = new Map();
 
-  constructor(node: Libp2p, identity: FullIdentity) {
+  /**
+   * Create a new SNaP2P protocol handler
+   * @param node - libp2p node
+   * @param identityResolver - Function to resolve which identity to use
+   */
+  constructor(node: Libp2p, identityResolver: IdentityResolver) {
     super();
     this.node = node;
-    this.identity = identity;
+    this.identityResolver = identityResolver;
   }
 
   /**
@@ -394,9 +412,25 @@ export class Snap2pProtocolHandler extends EventEmitter {
       const remotePeerId = connection.remotePeer.toString();
 
       try {
-        const session = new Snap2pSession(stream, this.identity, remotePeerId);
+        // Use resolver to get default identity for initial auth
+        const resolvedIdentity = this.identityResolver();
+        if (!resolvedIdentity) {
+          console.error('[snap2p] No identity available for incoming connection');
+          stream.close();
+          return;
+        }
+
+        const session = new Snap2pSession(stream, resolvedIdentity, remotePeerId);
 
         session.on('authenticated', (principal) => {
+          // Verify the remote peer is allowed
+          const targetIdentity = this.identityResolver(principal);
+          if (!targetIdentity) {
+            console.warn(`[snap2p] No identity allows peer ${principal}, closing connection`);
+            session.close();
+            return;
+          }
+
           this.sessions.set(principal, session);
           this.emit('session', session);
         });
@@ -426,14 +460,31 @@ export class Snap2pProtocolHandler extends EventEmitter {
 
   /**
    * Connect to a peer and authenticate
+   * @param peerId - libp2p peer ID to connect to
+   * @param identity - Optional: specific identity to use, otherwise uses default from resolver
    */
-  async connect(peerId: string): Promise<Snap2pSession> {
+  async connect(peerId: string, identity?: FullIdentity): Promise<Snap2pSession> {
     // Open a stream to the peer
     const { peerIdFromString } = await import('@libp2p/peer-id');
     const remotePeer = peerIdFromString(peerId);
 
     const stream = await this.node.dialProtocol(remotePeer, SNAP2P_PROTOCOL);
-    const session = new Snap2pSession(stream, this.identity, peerId);
+
+    // Determine which identity to use
+    let sessionIdentity: FullIdentity;
+    if (identity) {
+      // Explicit identity provided
+      sessionIdentity = identity;
+    } else {
+      // Use resolver to get default identity
+      const resolvedIdentity = this.identityResolver();
+      if (!resolvedIdentity) {
+        throw new Error('No identity available for outgoing connection');
+      }
+      sessionIdentity = resolvedIdentity;
+    }
+
+    const session = new Snap2pSession(stream, sessionIdentity, peerId);
 
     session.on('authenticated', (principal) => {
       this.sessions.set(principal, session);

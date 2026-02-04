@@ -51,11 +51,18 @@ export function setDataDir(dir: string): void {
 
 /**
  * Get the current data directory path
+ * Checks environment variable first (for per-identity storage in gateway mode)
  */
 export function getDataDirPath(): string {
+  // Check environment variable first (for per-identity storage)
+  if (process.env.CLAWCHAT_DATA_DIR) {
+    return process.env.CLAWCHAT_DATA_DIR;
+  }
+
   if (customDataDir) {
     return customDataDir;
   }
+
   return path.join(process.env.HOME || '~', '.clawchat');
 }
 
