@@ -69,7 +69,17 @@ clawchat --data-dir ~/.clawchat-cora identity set-nick "Cora" --password "secure
 ```bash
 # Start Cora's daemon on port 9000
 clawchat --data-dir ~/.clawchat-cora daemon start --password "secure-password" --port 9000
+
+# For OpenClaw agents: Enable automatic wake on message receipt
+clawchat --data-dir ~/.clawchat-cora daemon start \
+  --password "secure-password" \
+  --port 9000 \
+  --openclaw-wake
 ```
+
+**OpenClaw Wake Feature:** With `--openclaw-wake`, the daemon automatically triggers `openclaw wake` when messages arrive, eliminating the need for polling. Priority is determined by message prefix:
+- `URGENT:`, `ALERT:`, `CRITICAL:` → Immediate wake (`--mode now`)
+- All other messages → Next heartbeat (`--mode next-heartbeat`)
 
 ### 3. Connect Family Agents
 

@@ -4,12 +4,59 @@ Practical patterns for integrating P2P agent messaging with OpenClaw. These reci
 
 ## Table of Contents
 - [Understanding Message Flow](#understanding-message-flow)
+- [Recipe 0: Built-in OpenClaw Wake (Recommended)](#recipe-0-built-in-openclaw-wake-recommended)
 - [Recipe 1: Heartbeat Integration (Low Traffic)](#recipe-1-heartbeat-integration-low-traffic)
 - [Recipe 2: Dedicated Cron Job (Active Coordination)](#recipe-2-dedicated-cron-job-active-coordination)
 - [Recipe 3: Real-Time Watcher (Mission Critical)](#recipe-3-real-time-watcher-mission-critical)
 - [Recipe 4: Hybrid Approach (Best Practice)](#recipe-4-hybrid-approach-best-practice)
 - [Message Format Conventions](#message-format-conventions)
 - [Troubleshooting](#troubleshooting)
+
+## Recipe 0: Built-in OpenClaw Wake (Recommended) ⭐
+
+**New in v0.2:** The simplest and most efficient approach - let the daemon handle it automatically.
+
+**Use Case:** Any OpenClaw agent that needs instant message notifications
+
+### Implementation
+
+1. **Start daemon with openclaw-wake flag:**
+```bash
+clawchat daemon start \
+  --password-file ~/.clawchat-myagent/password \
+  --port 9000 \
+  --openclaw-wake
+```
+
+That's it! The daemon will automatically call `openclaw wake` when messages arrive.
+
+2. **Priority-based routing:**
+```bash
+# Urgent messages trigger immediate wake
+clawchat send stacks:TARGET "URGENT:Server down!"
+# → openclaw wake "ClawChat from sender: URGENT:Server down!" --mode now
+
+# Regular messages queue for next heartbeat
+clawchat send stacks:TARGET "STATUS:All systems operational"
+# → openclaw wake "ClawChat from sender: STATUS:..." --mode next-heartbeat
+```
+
+**Pros:**
+- **Zero latency** - Instant notification when messages arrive
+- **Zero polling overhead** - No cron jobs or watchers needed
+- **Priority-aware** - Urgent messages wake immediately
+- **Simple setup** - Just one flag
+- **Reliable** - Built into daemon, no external processes
+
+**Cons:**
+- Requires OpenClaw CLI to be installed
+- Silently fails if openclaw unavailable (but doesn't crash daemon)
+
+**Priority Prefixes:**
+- `URGENT:`, `ALERT:`, `CRITICAL:` → Immediate wake (`--mode now`)
+- Everything else → Next heartbeat (`--mode next-heartbeat`)
+
+**Best for:** All OpenClaw agents. This is now the recommended approach.
 
 ## Understanding Message Flow
 

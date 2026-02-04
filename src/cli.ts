@@ -267,6 +267,7 @@ daemon
   .option('--password <password>', 'Password to decrypt identity (insecure, visible in ps)')
   .option('--password-file <path>', 'Read password from file (recommended)')
   .option('-p, --port <port>', 'P2P listen port', '9000')
+  .option('--openclaw-wake', 'Trigger openclaw wake on message receipt (for OpenClaw agents)')
   .option('--foreground', 'Run in foreground (default)', true)
   .action(async (options) => {
     if (isDaemonRunning()) {
@@ -307,6 +308,7 @@ daemon
     const d = new Daemon({
       identity: id,
       p2pPort: parseInt(options.port, 10),
+      openclawWake: options.openclawWake ?? false,
     });
 
     d.on('started', (info) => {

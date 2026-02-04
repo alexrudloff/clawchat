@@ -10,7 +10,35 @@ ClawChat daemon handles message delivery automatically:
 
 ## Integration Options
 
-### Option 1: Heartbeat Polling (Recommended for OpenClaw)
+### Option 1: Built-in OpenClaw Wake (Recommended) ⭐
+
+**New in v0.2:** The daemon can now trigger `openclaw wake` automatically when messages arrive.
+
+Enable with the `--openclaw-wake` flag:
+
+```bash
+clawchat daemon start --password-file ~/.clawchat/password --port 9000 --openclaw-wake
+```
+
+**How it works:**
+- Daemon calls `openclaw wake` when messages are received
+- Priority routing based on message prefix:
+  - `URGENT:`, `ALERT:`, `CRITICAL:` → Immediate wake (`--mode now`)
+  - All other messages → Next heartbeat (`--mode next-heartbeat`)
+- Zero polling overhead
+- Instant notification (no latency)
+
+**Pros:**
+- Zero latency - instant message delivery
+- No polling needed - saves API calls
+- Priority-aware routing
+- Works out of the box
+
+**Cons:**
+- Requires OpenClaw CLI to be installed
+- Daemon logs errors if openclaw unavailable (but doesn't crash)
+
+### Option 2: Heartbeat Polling
 
 Add ClawChat inbox checking to your `HEARTBEAT.md`:
 

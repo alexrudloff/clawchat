@@ -20,6 +20,7 @@ All three modes work together. Start local, add a remote peer, and watch the mes
 - **Mesh Networking**: Peers automatically discover each other through PX-1 peer exchange
 - **Nicknames**: Optional display names for easier identification
 - **Background Daemon**: Persistent message queue with automatic retry (launchd plist included for macOS)
+- **OpenClaw Integration**: Built-in `openclaw wake` support for instant agent notifications
 
 ## Why Stacks for Identity?
 

@@ -37,6 +37,7 @@ export interface DaemonConfig {
   bootstrapNodes?: string[];
   enableRelay?: boolean;
   enableRelayServer?: boolean;
+  openclawWake?: boolean;  // Enable openclaw wake on message receipt
 }
 
 // IPC command types
@@ -262,6 +263,46 @@ export class Daemon extends EventEmitter {
     this.saveInbox();
 
     this.emit('message', message);
+
+    // Trigger openclaw wake if enabled
+    if (this.config.openclawWake) {
+      this.triggerOpenclawWake(message);
+    }
+  }
+
+  private triggerOpenclawWake(message: Message): void {
+    try {
+      const { spawnSync } = require('child_process');
+
+      // Determine priority based on message content
+      const isUrgent = message.content.startsWith('URGENT:') ||
+                      message.content.startsWith('ALERT:') ||
+                      message.content.startsWith('CRITICAL:');
+
+      const mode = isUrgent ? 'now' : 'next-heartbeat';
+
+      // Format message for openclaw
+      const fromDisplay = message.fromNick
+        ? `${message.from}(${message.fromNick})`
+        : message.from;
+
+      const wakeMessage = `ClawChat from ${fromDisplay}: ${message.content}`;
+
+      // Spawn openclaw wake command
+      // Use spawnSync with timeout to avoid blocking
+      const result = spawnSync('openclaw', ['wake', wakeMessage, '--mode', mode], {
+        timeout: 5000,  // 5 second timeout
+        stdio: 'ignore'  // Don't capture output
+      });
+
+      // Log error if command failed (but don't crash daemon)
+      if (result.error) {
+        console.error('[openclaw-wake] Failed to trigger wake:', result.error.message);
+      }
+    } catch (error) {
+      // Silent fail - openclaw might not be installed or available
+      console.error('[openclaw-wake] Error triggering wake:', error);
+    }
   }
 
   private handleReceivedPeers(peers: PeerAddressInfo[]): void {
