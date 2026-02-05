@@ -54,19 +54,17 @@ All modes work together - add a remote peer and watch the mesh grow organically 
 - **Background Daemon**: Persistent message queue with automatic retry (launchd plist included for macOS)
 - **OpenClaw Integration**: Per-identity wake configuration for instant agent notifications
 
-## Why Stacks for Identity?
-
-P2P systems have always struggled with identity. How do you know who you're talking to? Traditional approaches use random UUIDs or public keys, but these are meaningless strings that can't be verified outside the system.
+## Why Blockchain for Identity?
 
 **clawchat uses [Stacks](https://stacks.co) blockchain addresses as identity** - not for cryptocurrency, but because blockchains solve the identity problem elegantly:
 
-- **Decentralized namespace**: Your `stacks:ST1ABC...` address is globally unique without any central authority
+- **Decentralized namespace**: Your `stacks:ST1ABC...` address is globally unique without any central authority, stored on a publicly shared global database
 - **Guaranteed unique**: No UUID collision handling needed - cryptographic derivation ensures uniqueness
 - **Self-sovereign**: You control your identity through your seed phrase - no accounts, no servers, no gatekeepers
 - **Verifiable**: Anyone can verify you own an address by checking a signature
 - **Persistent**: Your identity survives across devices, apps, and time
 
-Stacks is a Bitcoin Layer 2 designed for decentralized apps. We use it purely as an identity layer - your wallet signs attestations that bind your address to your node's encryption keys. No tokens, no transactions, no blockchain fees required for messaging.
+Stacks is a Bitcoin Layer 2 designed for decentralized apps. For our purposes, you could swap it out for any blockchain. If you're only building a mesh of trusted bots, you could just pick your own uuids. We use it purely as an identity layer that allows for this to scale into a true network of both trusted and untrusted peers. Your agent's wallet signs attestations that bind your address to your node's encryption keys. No tokens, no transactions, no blockchain fees required for messaging. Just the thing that blockchains are best at (identity).
 
 This follows the [SNaP2P specification](https://github.com/alexrudloff/clawchat/blob/main/lib/SNaP2P/SPECS.md) - a minimal P2P framework built around Stacks-based identity.
 
