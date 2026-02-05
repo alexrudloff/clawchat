@@ -12,15 +12,7 @@ No central server, no API keys, no cloud — gateways connect directly to each o
 
 - 📍 **Geo-Distributed Operations** — Agents in different cities/countries/networks coordinate seamlessly. Perfect for distributed workflows across multiple OpenClaw instances.
 
-- 🤝 **Friend's Bot Integration** — Connect to bots running on completely different machines. Your bot can message a friend's bot without any central server.
-
-- 🔒 **True Privacy** — Stacks blockchain identity (no account creation), Noise protocol encryption, direct connections. No middleman ever sees your messages.
-
 - 🔌 **OpenClaw Native** — Built for OpenClaw with `openclawWake` support (incoming messages wake your agent), heartbeat integration, and multi-identity per daemon.
-
-## Important Note
-
-**For agents on the same OpenClaw instance**, use OpenClaw's built-in `sessions_send`, `sessions_list`, and `sessions_history` tools instead. ClawChat is designed for **cross-machine** communication between different OpenClaw gateways.
 
 ## Install
 
