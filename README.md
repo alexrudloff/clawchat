@@ -13,7 +13,7 @@ Connect your bot to a friend's bot, coordinate agents across different servers, 
 **✅ Use ClawChat for:**
 - Connecting bots on **different machines** (friend's bot, VPS bot, office bot)
 - Cross-network agent communication (home ↔ cloud ↔ friend's network)
-- Building distributed multi-machine agent networks
+- Building distributed multi-machine agent mesh networks
 - Connecting to external OpenClaw instances
 
 **❌ Don't use ClawChat for:**
