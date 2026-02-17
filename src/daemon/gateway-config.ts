@@ -156,9 +156,9 @@ function validateIdentityConfig(identity: unknown, index: number): asserts ident
   if (typeof id.principal !== 'string' || !id.principal) {
     throw new GatewayConfigError(`Identity at index ${index}: principal must be a non-empty string`);
   }
-  if (!id.principal.startsWith('stacks:')) {
+  if (!id.principal.startsWith('stacks:') && !id.principal.startsWith('local:')) {
     throw new GatewayConfigError(
-      `Identity at index ${index}: principal must start with "stacks:" (got: ${id.principal})`
+      `Identity at index ${index}: principal must start with "stacks:" or "local:" (got: ${id.principal})`
     );
   }
 
@@ -199,10 +199,10 @@ function validateIdentityConfig(identity: unknown, index: number): asserts ident
         `Identity at index ${index}: allowedRemotePeers[${j}] must be a non-empty string`
       );
     }
-    // Allow "*" or principals starting with "stacks:"
-    if (peer !== '*' && !peer.startsWith('stacks:')) {
+    // Allow "*" or principals starting with "stacks:" or "local:"
+    if (peer !== '*' && !peer.startsWith('stacks:') && !peer.startsWith('local:')) {
       throw new GatewayConfigError(
-        `Identity at index ${index}: allowedRemotePeers[${j}] must be "*" or a principal starting with "stacks:"`
+        `Identity at index ${index}: allowedRemotePeers[${j}] must be "*" or a principal starting with "stacks:" or "local:"`
       );
     }
   }

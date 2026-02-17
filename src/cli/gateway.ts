@@ -11,7 +11,7 @@
 import { Command } from 'commander';
 import * as fs from 'fs';
 import * as path from 'path';
-import { getDataDir, createIdentity, saveIdentity } from '../identity/keys.js';
+import { getDataDir, createIdentity, saveIdentity, type IdentityMode } from '../identity/keys.js';
 import {
   isGatewayMode,
   loadGatewayConfig,
@@ -76,6 +76,7 @@ async function gatewayInit(options: {
   migrate?: boolean;
   password?: string;
   testnet?: boolean;
+  mode?: string;
 }): Promise<void> {
   const dataDir = getDataDir();
 
@@ -86,7 +87,9 @@ async function gatewayInit(options: {
     process.exit(1);
   }
 
-  console.log('Initializing gateway mode...\n');
+  const identityMode: IdentityMode = (options.mode as IdentityMode) || 'local';
+
+  console.log(`Initializing gateway mode (${identityMode} identity)...\n`);
 
   // Check for existing legacy identity
   const legacyIdentityPath = path.join(dataDir, 'identity.enc');
@@ -140,13 +143,13 @@ async function gatewayInit(options: {
       console.log(`✓ Migrated identity to: ${identityDir}`);
     } else {
       // Create new identity
-      const result = await createNewIdentity(options.nick, options.password, options.testnet);
+      const result = await createNewIdentity(options.nick, options.password, options.testnet, identityMode);
       principal = result.principal;
       nick = result.nick;
     }
   } else {
     // Create new identity
-    const result = await createNewIdentity(options.nick, options.password, options.testnet);
+    const result = await createNewIdentity(options.nick, options.password, options.testnet, identityMode);
     principal = result.principal;
     nick = result.nick;
   }
@@ -161,6 +164,7 @@ async function gatewayInit(options: {
   console.log(`\nConfiguration saved to: ${path.join(dataDir, 'gateway-config.json')}`);
   console.log(`Identity: ${principal}${nick ? ` (${nick})` : ''}`);
   console.log(`P2P Port: ${p2pPort}`);
+  console.log(`Mode: ${identityMode}`);
   console.log('\nYou can now start the daemon with: clawchat daemon start');
 }
 
@@ -170,26 +174,35 @@ async function gatewayInit(options: {
 async function createNewIdentity(
   nickname?: string,
   passwordArg?: string,
-  testnetArg?: boolean
+  testnetArg?: boolean,
+  mode: IdentityMode = 'local'
 ): Promise<{ principal: string; nick?: string }> {
-  console.log('\nCreating new identity...');
+  console.log(`\nCreating new ${mode} identity...`);
 
-  // Ask for testnet or mainnet (unless provided via CLI)
-  let testnet: boolean;
-  if (testnetArg !== undefined) {
-    testnet = testnetArg;
-  } else {
-    const networkInput = await prompt('Use testnet? (Y/n): ');
-    testnet = networkInput.toLowerCase() !== 'n';
+  let testnet = false;
+
+  if (mode === 'stacks') {
+    // Ask for testnet or mainnet (unless provided via CLI)
+    if (testnetArg !== undefined) {
+      testnet = testnetArg;
+    } else {
+      const networkInput = await prompt('Use testnet? (Y/n): ');
+      testnet = networkInput.toLowerCase() !== 'n';
+    }
   }
 
   // Create identity
-  const identity = await createIdentity(testnet);
+  const identity = await createIdentity(testnet, mode);
 
   console.log('\n✓ Identity created successfully!');
   console.log(`Principal: ${identity.principal}`);
-  console.log(`\n⚠️  IMPORTANT: Back up your seed phrase!`);
-  console.log(`Seed phrase: ${identity.mnemonic}\n`);
+
+  if (mode === 'stacks') {
+    console.log(`\n⚠️  IMPORTANT: Back up your seed phrase!`);
+    console.log(`Seed phrase: ${identity.mnemonic}\n`);
+  } else {
+    console.log(`Mode: local (Ed25519 keypair, no blockchain)`);
+  }
 
   // Use provided password or prompt for one
   let password1: string;
@@ -261,10 +274,12 @@ function gatewayIdentityList(): void {
   console.log(`\nGateway Identities (${config.identities.length}):\n`);
 
   for (const identity of config.identities) {
+    const mode = identity.principal.startsWith('local:') ? 'local' : 'stacks';
     console.log(`  ${identity.principal}`);
     if (identity.nick) {
       console.log(`    Nickname: ${identity.nick}`);
     }
+    console.log(`    Mode: ${mode}`);
     console.log(`    Autoload: ${identity.autoload}`);
     console.log(`    Allow Local: ${identity.allowLocal}`);
     console.log(
@@ -283,6 +298,7 @@ async function gatewayIdentityAdd(options: {
   nick?: string;
   noAutoload?: boolean;
   allowPeers?: string;
+  mode?: string;
 }): Promise<void> {
   if (!isGatewayMode()) {
     console.error('Gateway mode not initialized. Run "clawchat gateway init" first.');
@@ -290,12 +306,13 @@ async function gatewayIdentityAdd(options: {
   }
 
   const config = loadGatewayConfig();
+  const identityMode: IdentityMode = (options.mode as IdentityMode) || 'local';
 
   // Get principal
   let principal = options.principal;
   if (!principal) {
     // Create new identity
-    const result = await createNewIdentity(options.nick);
+    const result = await createNewIdentity(options.nick, undefined, undefined, identityMode);
     principal = result.principal;
     options.nick = result.nick;
   }
@@ -376,16 +393,17 @@ export function registerGatewayCommands(program: Command): void {
     .description('Initialize gateway mode')
     .option('-p, --port <port>', 'P2P port', '9000')
     .option('-n, --nick <nickname>', 'Nickname for identity')
+    .option('-m, --mode <mode>', 'Identity mode: local (default) or stacks', 'local')
     .option('--no-migrate', 'Skip migration of existing identity')
     .option('--password <password>', 'Password for identity encryption (min 12 chars)')
-    .option('--testnet', 'Use testnet (default)')
-    .option('--mainnet', 'Use mainnet')
+    .option('--testnet', 'Use testnet (stacks mode only)')
+    .option('--mainnet', 'Use mainnet (stacks mode only)')
     .action((options) => {
       // Convert --mainnet to testnet=false
       if (options.mainnet) {
         options.testnet = false;
       } else if (options.testnet === undefined && !options.mainnet) {
-        // Will prompt interactively
+        // Will prompt interactively (stacks mode only)
       } else {
         options.testnet = true;
       }
@@ -405,6 +423,7 @@ export function registerGatewayCommands(program: Command): void {
     .description('Add identity to gateway')
     .option('--principal <principal>', 'Identity principal (if already exists)')
     .option('-n, --nick <nickname>', 'Nickname for identity')
+    .option('-m, --mode <mode>', 'Identity mode: local (default) or stacks', 'local')
     .option('--no-autoload', 'Do not autoload this identity on daemon start')
     .option('--allow-peers <peers>', 'Comma-separated list of allowed peer principals (* for all)')
     .action(gatewayIdentityAdd);

@@ -32,6 +32,7 @@ describe('MessageRouter', () => {
           walletPublicKeyHex: 'test',
           walletPrivateKeyHex: 'test',
           testnet: true,
+          mode: 'stacks' as const,
         },
         config: {
           principal: 'stacks:ST1RECEIVER',
@@ -98,6 +99,7 @@ describe('MessageRouter', () => {
           walletPublicKeyHex: 'test',
           walletPrivateKeyHex: 'test',
           testnet: true,
+          mode: 'stacks' as const,
         },
         config: {
           principal: 'stacks:ST1RECEIVER',
@@ -144,6 +146,7 @@ describe('MessageRouter', () => {
           walletPublicKeyHex: 'test',
           walletPrivateKeyHex: 'test',
           testnet: true,
+          mode: 'stacks' as const,
         },
         config: {
           principal: 'stacks:ST1RECEIVER',
@@ -190,6 +193,7 @@ describe('MessageRouter', () => {
           walletPublicKeyHex: 'test',
           walletPrivateKeyHex: 'test',
           testnet: true,
+          mode: 'stacks' as const,
         },
         config: {
           principal: 'stacks:ST1RECEIVER',
@@ -239,6 +243,7 @@ describe('MessageRouter', () => {
           walletPublicKeyHex: 'test',
           walletPrivateKeyHex: 'test',
           testnet: true,
+          mode: 'stacks' as const,
         },
         config: {
           principal: 'stacks:ST1SENDER',
@@ -287,6 +292,7 @@ describe('MessageRouter', () => {
           walletPublicKeyHex: 'test',
           walletPrivateKeyHex: 'test',
           testnet: true,
+          mode: 'stacks' as const,
         },
         config: {
           principal: 'stacks:ST1DEFAULT',
@@ -350,6 +356,7 @@ describe('MessageRouter', () => {
           walletPublicKeyHex: 'test',
           walletPrivateKeyHex: 'test',
           testnet: true,
+          mode: 'stacks' as const,
         },
         config: {
           principal: 'stacks:ST1TEST',
@@ -380,6 +387,7 @@ describe('MessageRouter', () => {
           walletPublicKeyHex: 'test',
           walletPrivateKeyHex: 'test',
           testnet: true,
+          mode: 'stacks' as const,
         },
         config: {
           principal: 'stacks:ST1TEST',
@@ -418,6 +426,7 @@ describe('MessageRouter', () => {
           walletPublicKeyHex: 'test',
           walletPrivateKeyHex: 'test',
           testnet: true,
+          mode: 'stacks' as const,
         },
         config: {
           principal: 'stacks:ST1IDENTITY1',
@@ -442,6 +451,7 @@ describe('MessageRouter', () => {
           walletPublicKeyHex: 'test',
           walletPrivateKeyHex: 'test',
           testnet: true,
+          mode: 'stacks' as const,
         },
         config: {
           principal: 'stacks:ST1IDENTITY2',
@@ -481,6 +491,7 @@ describe('MessageRouter', () => {
           walletPublicKeyHex: 'test',
           walletPrivateKeyHex: 'test',
           testnet: true,
+          mode: 'stacks' as const,
         },
         config: {
           principal: 'stacks:ST1IDENTITY',

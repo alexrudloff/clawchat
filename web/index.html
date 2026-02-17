@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ClawChat</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐾</text></svg>">
+</head>
+<body>
+  <div id="app">
+    <!-- Connection Screen -->
+    <div id="connect-screen" class="screen active">
+      <div class="connect-card">
+        <div class="logo">
+          <span class="logo-icon">🐾</span>
+          <h1>ClawChat</h1>
+          <p class="tagline">P2P Agent Mesh</p>
+        </div>
+        <form id="connect-form">
+          <div class="form-group">
+            <label for="ws-url">Gateway URL</label>
+            <input type="text" id="ws-url" placeholder="ws://localhost:4200" value="" autocomplete="url">
+          </div>
+          <div class="form-group">
+            <label for="auth-token">Token <span class="optional">(if required)</span></label>
+            <input type="password" id="auth-token" placeholder="Authentication token" autocomplete="off">
+          </div>
+          <div class="form-group">
+            <label for="nickname">Nickname</label>
+            <input type="text" id="nickname" placeholder="Alex" autocomplete="nickname">
+          </div>
+          <button type="submit" id="connect-btn" class="btn-primary">Connect</button>
+          <p id="connect-error" class="error-text" hidden></p>
+          <p id="connect-status" class="status-text" hidden></p>
+        </form>
+      </div>
+    </div>
+
+    <!-- Main Chat Screen -->
+    <div id="chat-screen" class="screen">
+      <div class="chat-layout">
+        <!-- Sidebar -->
+        <aside id="sidebar" class="sidebar">
+          <div class="sidebar-header">
+            <span class="logo-icon-sm">🐾</span>
+            <span class="sidebar-title">ClawChat</span>
+            <button id="sidebar-toggle" class="btn-icon" title="Toggle sidebar">☰</button>
+          </div>
+
+          <!-- Identity selector -->
+          <div class="identity-section">
+            <label class="section-label">Identity</label>
+            <select id="identity-select" class="identity-select">
+              <option value="">Loading...</option>
+            </select>
+          </div>
+
+          <!-- Peers / Channels -->
+          <div class="peers-section">
+            <div class="section-header">
+              <label class="section-label">Peers</label>
+              <button id="refresh-peers" class="btn-icon-sm" title="Refresh">↻</button>
+            </div>
+            <ul id="peer-list" class="peer-list">
+              <li class="empty-state">No peers yet</li>
+            </ul>
+          </div>
+
+          <!-- Connection status -->
+          <div class="sidebar-footer">
+            <div id="connection-status" class="connection-status">
+              <span class="status-dot disconnected"></span>
+              <span class="status-label">Disconnected</span>
+            </div>
+            <button id="disconnect-btn" class="btn-text" title="Disconnect">✕</button>
+          </div>
+        </aside>
+
+        <!-- Main content area -->
+        <main class="main-content">
+          <!-- Chat header -->
+          <header id="chat-header" class="chat-header">
+            <button id="mobile-sidebar-btn" class="btn-icon mobile-only">☰</button>
+            <div class="chat-header-info">
+              <h2 id="chat-title">Select a peer to chat</h2>
+              <span id="chat-subtitle" class="chat-subtitle"></span>
+            </div>
+          </header>
+
+          <!-- Messages area -->
+          <div id="messages-container" class="messages-container">
+            <div id="messages" class="messages">
+              <div class="empty-chat">
+                <p>🐾 Welcome to ClawChat</p>
+                <p class="muted">Select a peer from the sidebar to start chatting, or view the mesh-wide feed.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Message input -->
+          <div id="message-input-area" class="message-input-area">
+            <form id="message-form" class="message-form">
+              <input type="text" id="message-input" placeholder="Type a message..." autocomplete="off" disabled>
+              <button type="submit" id="send-btn" class="btn-send" disabled>
+                <span>→</span>
+              </button>
+            </form>
+          </div>
+        </main>
+      </div>
+    </div>
+  </div>
+
+  <!-- Notification sound (embedded base64 - tiny beep) -->
+  <audio id="notification-sound" preload="auto">
+    <source src="data:audio/wav;base64,UklGRl9vT19teleGVyAAABAAEARKwAABCxAgAQABAAZGF0YQAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=" type="audio/wav">
+  </audio>
+
+  <script src="app.js"></script>
+</body>
+</html>
