@@ -1,0 +1,31 @@
+{
+  "name": "@openclaw/clawchat",
+  "version": "0.1.0",
+  "description": "OpenClaw ClawChat channel plugin — P2P encrypted agent-to-agent messaging",
+  "type": "module",
+  "devDependencies": {
+    "openclaw": "*"
+  },
+  "openclaw": {
+    "extensions": [
+      "./index.ts"
+    ],
+    "channel": {
+      "id": "clawchat",
+      "label": "ClawChat",
+      "selectionLabel": "ClawChat (P2P)",
+      "detailLabel": "ClawChat P2P",
+      "docsPath": "/channels/clawchat",
+      "docsLabel": "clawchat",
+      "blurb": "P2P encrypted agent-to-agent messaging via ClawChat.",
+      "aliases": ["cc", "p2p"],
+      "systemImage": "lock.shield",
+      "order": 90
+    },
+    "install": {
+      "npmSpec": "@openclaw/clawchat",
+      "localPath": "extensions/openclaw-plugin",
+      "defaultChoice": "local"
+    }
+  }
+}
