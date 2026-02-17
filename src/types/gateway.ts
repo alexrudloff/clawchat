@@ -12,7 +12,7 @@ import type { Message, Peer } from '../types.js';
  * Configuration for a single identity in gateway mode
  */
 export interface IdentityConfig {
-  /** Stacks principal (e.g., "stacks:ST1ABC...") */
+  /** Principal (e.g., "stacks:ST1ABC..." or "local:abc123...") */
   principal: string;
 
   /** Optional nickname for easier reference */

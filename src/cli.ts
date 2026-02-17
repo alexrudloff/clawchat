@@ -36,11 +36,12 @@ const identity = program.command('identity').description('Manage identity');
 
 identity
   .command('create')
-  .description('Create a new identity with fresh seed phrase')
+  .description('Create a new identity')
   .option('--password <password>', 'Password to encrypt identity')
   .option('--password-file <path>', 'Read password from file (recommended)')
-  .option('--testnet', 'Use testnet addresses (for development)')
-  .option('--mainnet', 'Use mainnet addresses (default, recommended for production)')
+  .option('-m, --mode <mode>', 'Identity mode: local (default) or stacks', 'local')
+  .option('--testnet', 'Use testnet addresses (stacks mode only)')
+  .option('--mainnet', 'Use mainnet addresses (stacks mode only)')
   .action(async (options) => {
     if (identityExists()) {
       console.error(JSON.stringify({
@@ -65,22 +66,29 @@ identity
       process.exit(1);
     }
 
-    const id = await createIdentity(options.testnet ?? false);
+    const mode = options.mode || 'local';
+    const id = await createIdentity(options.testnet ?? false, mode);
     saveIdentity(id, password);
 
-    console.log(JSON.stringify({
+    const result: Record<string, unknown> = {
       status: 'created',
       principal: id.principal,
       address: id.address,
       publicKey: Buffer.from(id.publicKey).toString('hex'),
-      mnemonic: id.mnemonic, // IMPORTANT: User must back this up!
-      warning: 'SAVE YOUR SEED PHRASE! It cannot be recovered.',
-    }));
+      mode: id.mode,
+    };
+
+    if (mode === 'stacks') {
+      result.mnemonic = id.mnemonic;
+      result.warning = 'SAVE YOUR SEED PHRASE! It cannot be recovered.';
+    }
+
+    console.log(JSON.stringify(result));
   });
 
 identity
   .command('recover')
-  .description('Recover identity from existing seed phrase')
+  .description('Recover stacks identity from existing seed phrase')
   .option('--password <password>', 'Password to encrypt identity')
   .option('--password-file <path>', 'Read password from file (recommended)')
   .option('--mnemonic <phrase>', 'BIP39 seed phrase (24 words)')
@@ -185,6 +193,7 @@ identity
         address: id.address,
         publicKey: Buffer.from(id.publicKey).toString('hex'),
         nick: id.nick || null,
+        mode: id.mode || (id.principal.startsWith('local:') ? 'local' : 'stacks'),
         displayName: formatPrincipalWithNick(id.principal, id.nick),
       }));
     } catch (err) {
@@ -557,7 +566,7 @@ peers
 peers
   .command('add')
   .description('Add a peer')
-  .argument('<principal>', 'Peer principal (stacks:ST...)')
+  .argument('<principal>', 'Peer principal (stacks:ST... or local:abc...)')
   .argument('<address>', 'Peer address (host:port)')
   .option('--alias <alias>', 'Optional alias')
   .option('--as <identity>', 'Add peer to specific identity (principal or nickname)')

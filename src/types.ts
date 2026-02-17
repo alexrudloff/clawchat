@@ -1,8 +1,8 @@
 // Core types for clawchat
 
 export interface Identity {
-  principal: string;          // stacks:<address>
-  address: string;            // raw Stacks address
+  principal: string;          // stacks:<address> or local:<hex-pubkey>
+  address: string;            // raw Stacks address or hex pubkey (local mode)
   publicKey: Uint8Array;      // node public key (Ed25519)
   privateKey: Uint8Array;     // node private key (Ed25519)
 }

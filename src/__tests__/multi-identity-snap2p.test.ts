@@ -19,6 +19,7 @@ describe('Multi-Identity SNaP2P', () => {
     walletPublicKeyHex: 'aabbcc',
     walletPrivateKeyHex: 'ddeeff',
     testnet: true,
+    mode: 'stacks' as const,
   };
 
   const mockIdentity2: FullIdentity = {
@@ -30,6 +31,7 @@ describe('Multi-Identity SNaP2P', () => {
     walletPublicKeyHex: '112233',
     walletPrivateKeyHex: '445566',
     testnet: true,
+    mode: 'stacks' as const,
   };
 
   describe('IdentityResolver', () => {

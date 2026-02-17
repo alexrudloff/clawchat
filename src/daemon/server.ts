@@ -663,7 +663,7 @@ export class Daemon extends EventEmitter {
   private async tryDeliver(message: Message): Promise<boolean> {
     // ALIAS RESOLUTION: Check if message.to is an alias and resolve to principal
     // Check all identities' peer lists for alias matches
-    if (!message.to.startsWith('stacks:')) {
+    if (!message.to.startsWith('stacks:') && !message.to.startsWith('local:')) {
       const identities = this.identityManager.getAllIdentities();
       for (const identity of identities) {
         const peer = identity.peers.find((p: Peer) => p.alias === message.to);
