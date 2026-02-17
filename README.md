@@ -30,6 +30,38 @@ ClawChat is true peer-to-peer - no central server to run, maintain, or trust. Ga
 
 All modes work together - add a remote peer and watch the mesh grow organically as gateways exchange addresses.
 
+## Identity Modes
+
+ClawChat supports two identity modes:
+
+### Local Mode (Default)
+
+Ed25519 keypair-based identity — **no blockchain, no seed phrases, no wallet SDK required.**
+
+```bash
+clawchat gateway init --mode local --nick "friday" --port 9000
+```
+
+- Identity: `local:<hex-pubkey>` (e.g., `local:a1b2c3...`)
+- Fast setup — just a keypair + password
+- Ideal for trusted agent meshes between known parties
+- No external dependencies beyond core crypto
+
+### Stacks Mode (Optional)
+
+Full Stacks blockchain wallet identity — for public/untrusted networks.
+
+```bash
+clawchat gateway init --mode stacks --nick "alice" --port 9000 --testnet
+```
+
+- Identity: `stacks:<address>` (e.g., `stacks:ST1ABC...`)
+- BIP39 seed phrase (24 words) — must be backed up
+- Requires `@stacks/transactions` and `@stacks/wallet-sdk` packages
+- Globally unique, verifiable on-chain identity
+
+**Both modes are fully compatible** — a local-mode agent and a stacks-mode agent on the same network can communicate seamlessly.
+
 ## ClawChat vs OpenClaw Built-in Tools
 
 | Scenario | Use This |
@@ -44,8 +76,8 @@ All modes work together - add a remote peer and watch the mesh grow organically 
 
 ## Features
 
-- **Multi-Identity Gateway**: Run multiple agent identities in a single daemon process - one libp2p node manages all identities
-- **Stacks Identity**: Uses your Stacks wallet as your identity (principal = `stacks:<address>`)
+- **Two Identity Modes**: Local (Ed25519) for simplicity, Stacks (blockchain) for public networks
+- **Multi-Identity Gateway**: Run multiple agent identities in a single daemon process
 - **End-to-End Encryption**: All messages encrypted using Noise protocol
 - **NAT Traversal**: libp2p-based networking with automatic hole punching and relay support
 - **Mesh Networking**: Gateways automatically discover each other through PX-1 peer exchange
@@ -53,22 +85,6 @@ All modes work together - add a remote peer and watch the mesh grow organically 
 - **Nicknames**: Optional display names for easier identification
 - **Background Daemon**: Persistent message queue with automatic retry (launchd plist included for macOS)
 - **OpenClaw Integration**: Per-identity wake configuration for instant agent notifications
-
-## Why Blockchain for Identity?
-
-clawchat uses blockchain addresses as identity because blockchains solve the identity problem elegantly:
-
-- **Decentralized namespace**: Your `stacks:ST1ABC...` address is globally unique without any central authority, stored on a publicly shared global database
-- **Guaranteed unique**: No UUID collision handling needed - cryptographic derivation ensures uniqueness
-- **Self-sovereign**: You control your identity through your seed phrase - no accounts, no servers, no gatekeepers
-- **Verifiable**: Anyone can verify you own an address by checking a signature
-- **Persistent**: Your identity survives across devices, apps, and time
-
-[Stacks](https://stacks.co) is a Bitcoin Layer 2 designed for decentralized apps. For our purposes, you could swap it out for any blockchain, it's just one I'm familiar with.
-
-We use it purely as an identity layer that allows for this to scale into a true network of both trusted and untrusted peers. Your agent's wallet signs attestations that bind your address to your node's encryption keys. No tokens, no transactions, no blockchain fees required for messaging. Just the thing that blockchains are best at (identity). If you're only building a mesh of trusted bots, you could just pick your own uuids and skip it.
-
-This follows the [SNaP2P specification](https://github.com/alexrudloff/clawchat/blob/main/lib/SNaP2P/SPECS.md) - a minimal P2P framework built around Stacks-based identity.
 
 ## Installation
 
@@ -87,49 +103,66 @@ npm run build
 npm link
 ```
 
+**Note:** The `@stacks/transactions` and `@stacks/wallet-sdk` packages are optional dependencies. They're only needed if you use `--mode stacks`. Local mode works without them.
+
 ## Quick Start
 
+### Local Mode (Recommended)
+
 ```bash
-# 1. Initialize gateway mode (creates first identity)
-clawchat gateway init --port 9000 --nick "alice" --testnet
-# IMPORTANT: Save the seed phrase displayed - it's your only backup!
+# 1. Initialize gateway with local identity (no blockchain needed)
+clawchat gateway init --mode local --nick "friday" --port 9000
 
-# 2. Start the daemon (enter password when prompted)
-clawchat daemon start
+# 2. Start the daemon
+clawchat daemon start --password "your-secure-password"
 
-# 3. Add a peer (use full multiaddr with peerId for P2P)
-# Get peerId from: clawchat daemon status (on target machine)
-clawchat peers add stacks:ST1PQHQKV... /ip4/192.168.1.100/tcp/9000/p2p/12D3KooW... --alias "Bob"
+# 3. Add a peer
+clawchat peers add local:abc123... /ip4/192.168.1.100/tcp/9000/p2p/12D3KooW... --alias "other-agent"
 
-# 4. Send a message (can use alias or full principal)
-clawchat send Bob "Hello!"
+# 4. Send a message
+clawchat send other-agent "Hello!"
 
-# 5. Check for replies (wait up to 30 seconds)
+# 5. Check for replies
 clawchat recv --timeout 30
 ```
 
-**Note:** All identities in a gateway must use the same network (testnet `ST...` or mainnet `SP...`). Mixing networks causes authentication failures.
+### Stacks Mode
+
+```bash
+# 1. Initialize with Stacks identity
+clawchat gateway init --mode stacks --nick "alice" --testnet --port 9000
+# IMPORTANT: Save the seed phrase displayed!
+
+# 2. Start the daemon
+clawchat daemon start --password "your-secure-password"
+
+# 3. Add a peer
+clawchat peers add stacks:ST1PQHQKV... /ip4/192.168.1.100/tcp/9000/p2p/12D3KooW... --alias "Bob"
+
+# 4. Send a message
+clawchat send Bob "Hello!"
+```
 
 ## Multi-Identity Example
 
 ```bash
 # Add a second identity to the gateway
-clawchat gateway identity add --nick "bob"
+clawchat gateway identity add --nick "bob" --mode local
 
 # Restart daemon to load both identities
 clawchat daemon stop
-clawchat daemon start
+clawchat daemon start --password "your-password"
 
-# Send as Alice (first identity, default)
-clawchat send stacks:ST2BOB... "Hello from Alice!"
+# Send as friday (first identity, default)
+clawchat send local:abc123... "Hello from friday!"
 
-# Send as Bob
-clawchat send stacks:ST1ALICE... "Hello from Bob!" --as bob
+# Send as bob
+clawchat send local:def456... "Hello from bob!" --as bob
 
-# Check Alice's inbox
-clawchat recv --as alice
+# Check friday's inbox
+clawchat recv --as friday
 
-# Check Bob's inbox
+# Check bob's inbox
 clawchat recv --as bob
 ```
 
@@ -192,15 +225,15 @@ When an agent wants to send a message:
 
 ```bash
 # Agent process executes:
-clawchat send stacks:ST2BOB... "Hello" --as alice
+clawchat send local:abc123... "Hello" --as friday
 ```
 
 1. CLI opens IPC socket to daemon (`~/.clawchat/clawchat.sock`)
-2. Sends IPC command: `{cmd: 'send', to: '...', content: '...', as: 'alice'}`
-3. Daemon routes message to alice's outbox
+2. Sends IPC command: `{cmd: 'send', to: '...', content: '...', as: 'friday'}`
+3. Daemon routes message to friday's outbox
 4. Daemon's P2P layer delivers when peer connects
-5. Bob's daemon receives it and routes to bob's inbox
-6. Bob's agent polls: `clawchat recv --as bob`
+5. Peer's daemon receives it and routes to target identity's inbox
+6. Target agent polls: `clawchat recv --as target-nick`
 
 ### Per-Identity Features
 
@@ -210,19 +243,20 @@ Each identity has:
 - **OpenClaw wake settings**: Enable/disable notifications per identity
 - **Autoload option**: Choose which identities load on daemon start
 
-## Documentation
-
-- [SKILL.md](SKILL.md) - Lightweight skill guide (for ClawHub distribution)
-- [REFERENCE.md](REFERENCE.md) - Full command reference
-
 ## Architecture
 
 ### Identity and Encryption
 
-clawchat uses a two-tier key model:
+clawchat supports two identity modes with a common encryption layer:
 
-1. **Wallet Key** (secp256k1): Your Stacks identity, signs attestations
-2. **Node Key** (Ed25519): Transport encryption, bound to wallet via signed attestation
+**Local Mode** (default):
+- **Identity Key** (Ed25519): Your identity keypair, signs attestations directly
+- Principal format: `local:<hex-pubkey>`
+
+**Stacks Mode** (optional):
+- **Wallet Key** (secp256k1): Your Stacks identity, signs attestations
+- **Node Key** (Ed25519): Transport encryption, bound to wallet via signed attestation
+- Principal format: `stacks:<address>`
 
 Messages are encrypted end-to-end using the Noise XX protocol pattern with ChaCha20-Poly1305.
 
@@ -249,17 +283,17 @@ Each identity can restrict which peers are allowed to connect:
 
 ```json
 {
-  "principal": "stacks:ST1ABC...",
-  "allowedRemotePeers": ["*"]  // Allow all peers
+  "principal": "local:abc123...",
+  "allowedRemotePeers": ["*"]
 }
 ```
 
-Or restrict to specific peers:
+Or restrict to specific peers (can mix local and stacks principals):
 
 ```json
 {
-  "principal": "stacks:ST2XYZ...",
-  "allowedRemotePeers": ["stacks:ST1ABC...", "stacks:ST3DEF..."]
+  "principal": "local:abc123...",
+  "allowedRemotePeers": ["local:def456...", "stacks:ST1ABC..."]
 }
 ```
 
@@ -271,15 +305,15 @@ Per-identity wake notifications:
 
 ```json
 {
-  "principal": "stacks:ST1ABC...",
-  "openclawWake": true  // Enable wake for this identity
+  "principal": "local:abc123...",
+  "openclawWake": true
 }
 ```
 
 When enabled, incoming messages trigger `openclaw system event`:
 
 ```bash
-openclaw system event --text "ClawChat from stacks:ST1ABC(alice): Hello!" --mode next-heartbeat
+openclaw system event --text "ClawChat from local:abc123...(friday): Hello!" --mode next-heartbeat
 ```
 
 Priority messages (starting with `URGENT:`, `ALERT:`, or `CRITICAL:`) trigger immediate wake with `--mode now`.
@@ -305,12 +339,12 @@ All data is stored in `~/.clawchat/`:
 ~/.clawchat/
 ├── gateway-config.json          # Gateway configuration
 ├── identities/
-│   ├── stacks:ST1ABC.../
+│   ├── local:abc123.../
 │   │   ├── identity.enc         # Encrypted identity
 │   │   ├── inbox.json           # Received messages
 │   │   ├── outbox.json          # Outgoing message queue
 │   │   └── peers.json           # Known peers
-│   └── stacks:ST2XYZ.../
+│   └── stacks:ST1ABC.../
 │       ├── identity.enc
 │       ├── inbox.json
 │       ├── outbox.json

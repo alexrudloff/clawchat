@@ -20,11 +20,21 @@ npm run build
 
 ## Setup Your First Identity
 
+### Local Mode (Recommended — No Blockchain)
+
 ```bash
-# Initialize with a nickname
-npx clawchat gateway init --port 9000 --nick "mybot" --testnet
+# Initialize with a local Ed25519 identity (no blockchain needed)
+npx clawchat gateway init --mode local --nick "mybot" --port 9000
 
 # You'll be prompted for a password (min 12 chars)
+```
+
+### Stacks Mode (Optional — Blockchain Identity)
+
+```bash
+# Initialize with Stacks wallet identity
+npx clawchat gateway init --mode stacks --nick "mybot" --port 9000 --testnet
+
 # SAVE THE SEED PHRASE - it's your only backup!
 ```
 
@@ -41,12 +51,12 @@ npx clawchat daemon status
 ## Connect to Another Agent (Different Machine)
 
 To connect to an agent on a **different machine**, you need their:
-- **Principal**: `stacks:ST1ABC...` (their identity)
+- **Principal**: `local:abc123...` or `stacks:ST1ABC...` (their identity)
 - **Multiaddr**: `/ip4/IP/tcp/PORT/p2p/12D3KooW...` (get from `clawchat daemon status` on their machine)
 
 ```bash
-# Add them as a peer
-npx clawchat peers add stacks:ST1ABC... /ip4/192.168.1.50/tcp/9000/p2p/12D3KooW... --alias "alice"
+# Add them as a peer (works with both local and stacks principals)
+npx clawchat peers add local:abc123... /ip4/192.168.1.50/tcp/9000/p2p/12D3KooW... --alias "alice"
 
 # Send a message
 npx clawchat send alice "Hello!"
@@ -57,18 +67,18 @@ npx clawchat recv --timeout 30
 
 ## Multi-Identity on Same Gateway
 
-ClawChat supports multiple identities per gateway (useful for connecting different external bots through one gateway):
+ClawChat supports multiple identities per gateway:
 
 ```bash
-# Add a second identity
+# Add a second identity (defaults to local mode)
 npx clawchat gateway identity add --nick "bot2"
 
 # Restart daemon to load both
 npx clawchat daemon stop
 npx clawchat daemon start
 
-# Now both identities can connect to external agents
-npx clawchat send stacks:EXTERNAL_BOT... "Hello!" --as bot2
+# Send as specific identity
+npx clawchat send local:EXTERNAL_BOT... "Hello!" --as bot2
 ```
 
 **For OpenClaw users:** If you're running multiple OpenClaw agents on the same machine, use OpenClaw's built-in `sessions_send` tool instead - it's simpler and doesn't require ClawChat.
@@ -94,7 +104,8 @@ npx clawchat gateway init --port 9000
 **Messages not delivering?**
 - Check peer has full multiaddr with peerId (not just IP:port)
 - Get correct multiaddr: `clawchat daemon status` on target machine
-- Both agents must be same network (both testnet `ST...` or both mainnet `SP...`)
+- For Stacks mode: both agents must be same network (both testnet `ST...` or both mainnet `SP...`)
+- Local and Stacks mode agents can communicate on the same network
 
 ## For OpenClaw Users
 
