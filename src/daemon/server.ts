@@ -28,6 +28,7 @@ import { IdentityManager } from './identity-manager.js';
 import { isGatewayMode, loadGatewayConfig } from './gateway-config.js';
 import type { GatewayConfig, LoadedIdentity } from '../types/gateway.js';
 import { MessageRouter } from './message-router.js';
+import { WsBridge, type WsBridgeConfig } from './ws-bridge.js';
 
 const SOCKET_NAME = 'clawchat.sock';
 const PID_FILE = 'daemon.pid';
@@ -41,6 +42,7 @@ export interface DaemonConfig {
   enableRelay?: boolean;
   enableRelayServer?: boolean;
   gatewayConfig?: GatewayConfig; // Optional: will auto-detect if not provided
+  wsBridge?: WsBridgeConfig;     // Optional: WebSocket bridge for web clients
 }
 
 // IPC command types
@@ -78,6 +80,7 @@ export class Daemon extends EventEmitter {
   private gatewayConfig: GatewayConfig;
   private identityManager: IdentityManager;
   private messageRouter: MessageRouter;
+  private wsBridge: WsBridge | null = null;
 
   constructor(config: DaemonConfig) {
     super();
@@ -200,6 +203,18 @@ export class Daemon extends EventEmitter {
     // Push peers to connected nodes periodically
     setInterval(() => this.pushPeersToConnected(), 60000);
 
+    // Start WebSocket bridge if configured
+    if (this.config.wsBridge) {
+      const webDir = path.join(path.dirname(new URL(import.meta.url).pathname), '..', '..', 'web');
+      const bridgeConfig: WsBridgeConfig = {
+        ...this.config.wsBridge,
+        serveStatic: this.config.wsBridge.serveStatic ?? true,
+        staticDir: this.config.wsBridge.staticDir ?? (fs.existsSync(webDir) ? webDir : undefined),
+      };
+      this.wsBridge = new WsBridge(bridgeConfig, this);
+      await this.wsBridge.start();
+    }
+
     const multiaddrs = getMultiaddrs(this.libp2pNode);
 
     const defaultIdentity = this.messageRouter.getDefaultIdentity();
@@ -209,6 +224,7 @@ export class Daemon extends EventEmitter {
       principal: defaultIdentity?.identity.principal || 'unknown',
       peerId: this.libp2pNode.peerId,
       multiaddrs,
+      wsBridge: this.config.wsBridge ? { port: this.config.wsBridge.port } : undefined,
     });
   }
 
@@ -846,6 +862,12 @@ export class Daemon extends EventEmitter {
   }
 
   async stop(exitProcess = true): Promise<void> {
+    // Stop WebSocket bridge
+    if (this.wsBridge) {
+      await this.wsBridge.stop();
+      this.wsBridge = null;
+    }
+
     // Stop PX-1 handler
     if (this.px1Handler) {
       this.px1Handler.stop();

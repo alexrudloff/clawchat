@@ -278,6 +278,8 @@ daemon
   .description('Start the daemon')
   .option('--password <password>', 'Password to decrypt identities (insecure, visible in ps)')
   .option('--password-file <path>', 'Read password from file (recommended)')
+  .option('--web-port <port>', 'Enable web UI on this port (e.g., 4200)')
+  .option('--web-token <token>', 'Authentication token for web clients')
   .action(async (options) => {
     if (isDaemonRunning()) {
       console.error(JSON.stringify({ error: 'Daemon already running' }));
@@ -316,10 +318,16 @@ daemon
       process.exit(1);
     }
 
-    // Create daemon
+    // Create daemon with optional web bridge
+    const wsBridgeConfig = options.webPort ? {
+      port: parseInt(options.webPort, 10),
+      token: options.webToken,
+    } : undefined;
+
     const d = new Daemon({
       p2pPort: config.p2pPort,
       gatewayConfig: config,
+      wsBridge: wsBridgeConfig,
     });
 
     // Load autoload identities before starting
